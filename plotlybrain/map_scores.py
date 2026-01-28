@@ -14,28 +14,28 @@ import pandas as pd
 import plotly.express as px
 from plotly.colors import sample_colorscale
 import xml.etree.ElementTree as ET
+from collections import Counter
 
 from .allen_api import (
-    ALLEN_API_BASE,
     DEFAULT_ATLAS_ID,
     DEFAULT_GROUP_ID,
     fetch_section_image_ids,
-    download_section_svg,
+    download_section_svg,       
     AllenAPIError,
 )
 
 def load_score(
-    score_hdf5: str,
+    score_csv: str,
     *,
     id_col: str = "Region ID",
     name_col: str = "Region name",
-    value_col: str = "frequency",
+    value_col: str = "frequency",   
 ) -> Tuple[Dict[int, float], Dict[int, str]]:
     """
-    Load a region-level score hdf5 and build lookup dictionaries.
+    Load a region-level score CSV and build lookup dictionaries.
 
     Args:
-        score_hdf5(str): Path to an HDF5 file produced by scores.py.
+        score_csv(str): Path to a CSV file produced by scores.py.
         id_col(str): Column name containing Allen structure IDs.
         name_col(str): Column name containing region names.
         value_col(str): Column name containing the score to color by
@@ -47,7 +47,7 @@ def load_score(
             - id2name: structure_id -> region name
     """
     df = (
-        pd.read_hdf(score_hdf5, key="scores")[[id_col, name_col, value_col]]
+        pd.read_csv(score_csv)[[id_col, name_col, value_col]]
         .assign(
             **{
                 id_col: lambda d: pd.to_numeric(d[id_col], errors="coerce").astype("Int64"),
@@ -100,7 +100,7 @@ def score_to_hex(
         t = 0.0 if t < 0 else 1.0 if t > 1 else t
 
     colorscale = px.colors.get_colorscale(cmap)  
-    return sample_colorscale(colorscale, t, colortype="hex")[0]
+    return sample_colorscale(colorscale, [t], colortype="rgb")[0]
 
 def get_svg_attr(
         el: ET.Element, 
@@ -119,7 +119,6 @@ def get_svg_attr(
     if key in el.attrib:
         return el.attrib[key]
     return next((v for k, v in el.attrib.items() if k.endswith("}" + key)), None)
-
 
 def candidate_ids(
         el: ET.Element,
@@ -146,40 +145,95 @@ def candidate_ids(
     seen = set()
     return [x for x in ids if not (x in seen or seen.add(x))]
 
-
-def recolor_svg_text(
-        svg_text: str, 
-        id2value: Dict[int, float], 
-        *, 
-        cmap="Temps",
-        vmin=None, 
-        vmax=None, 
-        stroke="#444444", 
-        stroke_width=0.3,
-        opacity=1.0, 
-        na_fill="#00000000", 
-        ) -> str:
+def choose_value_from_candidates(
+    cands: List[int],
+    id2value: Dict[int, float],
+) -> Tuple[Optional[int], Optional[float]]:
     """
-    Recolor an Allen Brain Atlas SVG-text section using region-level scores.
-    Color values are obtained by mapping numeric scores to a Plotly colorscale.
-    Regions without an associated score are rendered transparent.
+    Given a list of candidate Allen IDs (most specific first),
+    return the first (id, value) found in id2value.
 
     Args:
-        svg_text (str): Raw SVG content of an Allen atlas section.
-        id2value (dict[int, float]): Mapping from Allen structure IDs to scores.
-        cmap (str): Plotly colorscale name used for coloring.
-        vmin (float, optional): Minimum score used for color normalization.
-                               If None, inferred from the data.
-        vmax (float, optional): Maximum score used for color normalization.
-                               If None, inferred from the data.
-        stroke (str): Color used for region outlines.
-        stroke_width (float): Width of region outlines.
-        opacity (float): Fill opacity for scored regions.
-        na_fill (str): Fill color for regions without a score
-                       (default: transparent).
+        cands(list[int]): Candidate structure IDs.
+        id2value(dict[int, float]): structure_id -> score value.
 
     Returns:
-        str: SVG text with anatomical regions recolored according to the scores.
+        Tuple[Optional[int], Optional[float]]: (structure_id, score value) or 
+    """
+    for sid in cands:
+        if sid in id2value:
+            try:
+                return sid, float(id2value[sid])
+            except Exception:
+                return sid, None
+    return None, None
+
+def _apply_fill_and_stroke(
+    el: ET.Element,
+    *,
+    fill: str,
+    fill_opacity: float,
+    stroke: str,
+    stroke_width: float,
+) -> None:
+    """
+    Apply fill and stroke attributes to an SVG element.
+
+    Args:
+        el(Element): SVG element to modify.
+        fill(str): Fill color (e.g. '#RRGGBB' or 'none').
+        fill_opacity(float): Fill opacity (0.0 to 1.0).
+        stroke(str): Stroke color (e.g. '#RRGGBB' or 'none').
+        stroke_width(float): Stroke width in pixels.    
+
+    Returns:
+        None
+    """
+    el.set("fill", fill)
+    el.set("fill-opacity", str(fill_opacity))
+    el.set("stroke", stroke)
+    el.set("stroke-width", str(stroke_width))
+    # Write style too (SVG often uses style precedence)
+    el.set(
+        "style",
+        (
+            f"fill:{fill};"
+            f"fill-opacity:{fill_opacity};"
+            f"stroke:{stroke};"
+            f"stroke-width:{stroke_width}px;"
+            "stroke-linejoin:round;"
+            "stroke-linecap:round;"
+        ),
+    )
+
+def recolor_svg_text(
+    svg_text: str,
+    id2value: Dict[int, float],
+    *,
+    cmap: str = "Temps",
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    stroke: str = "#808080",
+    stroke_width: float = 0.6,
+    opacity: float = 1.0,
+    na_fill: str = "none",
+) -> str:
+    """
+    Recolor an Allen Brain Atlas SVG text by region-level scores.
+
+    Args:
+        svg_text(str): Original SVG text.
+        id2value(dict[int, float]): structure_id -> score value.
+        cmap(str): Plotly colorscale name.
+        vmin(float, optional): Min for color normalization (default inferred).
+        vmax(float, optional): Max for color normalization (default inferred).
+        stroke(str): Stroke color for shapes (e.g. '#RRGGBB' or 'none').
+        stroke_width(float): Stroke width in pixels.
+        opacity(float): Fill opacity for colored shapes (0.0 to 1.0).
+        na_fill(str): Fill color for missing values (e.g. 'none' or '#00000000').
+
+    Returns:
+        str: Recolored SVG text.
     """
     if not id2value:
         return svg_text
@@ -190,22 +244,42 @@ def recolor_svg_text(
 
     root = ET.fromstring(svg_text)
 
+    
+    matched = 0
+    painted = 0
+    fills_applied = []
+    example_rows = 0
+
     for el in root.iter():
         tag = el.tag.split("}")[-1].lower()
         if tag not in {"path", "polygon", "polyline"}:
             continue
-        val = None
-        for sid in candidate_ids(el):
-            if sid in id2value:
-                val = id2value[sid]
-                break
 
-        fill = score_to_hex(val, cmap=cmap, vmin=vmin, vmax=vmax, na_color=na_fill)
-        el.set("fill", fill)  #color inside the shape
-        el.set("fill-opacity", str(opacity) if fill != na_fill else "0") #transparency of the shape
-        el.set("stroke", stroke) #color of the outline
-        el.set("stroke-width", str(stroke_width)) #thickness of the outline
+        cands = candidate_ids(el)  # your existing function (self -> ancestors)
+        sid_used, val = choose_value_from_candidates(cands, id2value)
 
+        if sid_used is None:
+            continue
+
+        matched += 1
+
+        if val == 0.0:
+            fill = na_fill
+            fill_opacity = 0.0 if na_fill == "none" else 1.0
+        else:
+            fill = score_to_hex(val, cmap=cmap, vmin=vmin, vmax=vmax, na_color=na_fill)
+            fill_opacity = opacity
+
+        _apply_fill_and_stroke(
+            el,
+            fill=fill,
+            fill_opacity=fill_opacity,
+            stroke=stroke,
+            stroke_width=stroke_width,
+        )
+
+        painted += 1
+        fills_applied.append(fill)
     return ET.tostring(root, encoding="unicode")
 
 def recolor_section_svg(
@@ -213,7 +287,6 @@ def recolor_section_svg(
     out_path: str,
     id2value: Dict[int, float],
     *,
-    svg_dir: str = "allen_svgs",
     group_id: int = DEFAULT_GROUP_ID,
     cache: bool = True,
     overwrite: bool = False,
@@ -221,45 +294,47 @@ def recolor_section_svg(
     cmap: str = "Temps",
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
+    encoding: str = "utf-8",
 ) -> str:
     """
-    Download (if needed) and recolor one Allen section SVG, then save it.
+    Download an Allen section SVG, recolor it by score, and save it.
 
     Args:
-        section_image_id(int): Allen section image (sub_image) ID.
-        out_path(str): Output path for recolored SVG.
-        id2value(dict[int, float]): structure_id -> score value.
-        svg_dir(str): Directory used to cache raw SVG downloads.
-        group_id(int): Allen SVG boundary group ID (default 28).
-        cache(bool): Reuse cached raw SVG file if present.
-        overwrite(bool): Overwrite existing recolored SVG.
-        timeout(int): Request timeout in seconds.
+        section_image_id(int): Allen section image id (sub_images.id).
+        out_path(str): Where to save the recolored SVG.
+        id2value(dict[int,float]): structure_id -> score value.
+        group_id(int): Boundary group id (28 = structure boundaries).
+        cache(bool): If True and out_path exists, skip recomputing unless overwrite=True.
+        overwrite(bool): If True, overwrite existing out_path.
+        timeout(int): Request timeout (seconds).
         cmap(str): Plotly colorscale name.
-        vmin(float, optional): Normalization min.
-        vmax(float, optional): Normalization max.
+        vmin(float, optional): Min for color normalization (default inferred).
+        vmax(float, optional): Max for color normalization (default inferred).
+        encoding(str): Encoding used to decode SVG bytes.
 
     Returns:
         str: Path to the saved recolored SVG.
     """
-    os.makedirs(svg_dir, exist_ok=True)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
-    raw_svg = os.path.join(svg_dir, f"{section_image_id}.svg")
-    download_section_svg(
+    if cache and not overwrite and os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
+        return out_path
+
+    svg_bytes = download_section_svg(
         section_image_id=section_image_id,
-        out_path=raw_svg,
         group_id=group_id,
-        cache=cache,
-        overwrite=overwrite,
         timeout=timeout,
     )
+    svg_text = svg_bytes.decode(encoding, errors="replace")
 
-    if (not overwrite) and os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
-        return out_path
-    with open(raw_svg, "r", encoding="utf-8") as f:
-        svg_text = f.read()
-    svg_text = recolor_svg_text(svg_text, id2value, cmap=cmap, vmin=vmin, vmax=vmax)
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(svg_text)
+    recolored = recolor_svg_text(
+        svg_text,
+        id2value,
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+    )
+    with open(out_path, "w", encoding=encoding) as f:
+        f.write(recolored)
 
     return out_path

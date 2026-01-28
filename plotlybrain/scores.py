@@ -6,7 +6,7 @@ Region-level score tables from QUINT *_RefAtlasRegions.csv exports.
 from __future__ import annotations
 import os
 import glob
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Literal, Callable
+from typing import Dict, Optional, Set, Literal, Callable
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore
@@ -260,5 +260,5 @@ def save_scores(
 
     score_df = score_fn(region_by_subject)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    score_df.to_hdf(out_path, key="scores", index=False)
+    score_df.to_csv(out_path, index=False)
     return score_df

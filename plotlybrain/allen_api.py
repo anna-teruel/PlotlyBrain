@@ -7,8 +7,10 @@ Data acquisition.
 from __future__ import annotations
 import os
 import time
+import pandas as pd
 from typing import List
 import requests
+import io
 
 ALLEN_API_BASE = "https://api.brain-map.org/api/v2"
 DEFAULT_ATLAS_ID = 1 
@@ -18,72 +20,64 @@ class AllenAPIError(RuntimeError):
     """Raised when Allen API requests fail or return unexpected content."""
 
 def fetch_section_image_ids(
-        atlas_id: int = DEFAULT_ATLAS_ID,
-        include_failed: bool = False,
-        timeout: int = 60,
-        )-> List[int]:
+    atlas_id: int = DEFAULT_ATLAS_ID,
+    *,
+    group_id: int = DEFAULT_GROUP_ID,
+    timeout: int = 60,
+) -> List[int]:
     """
-    Fetch section-image (sub_image) IDs for a given atlas dataset.
+    Fetch Allen atlas section IDs usable in /svg_download/<id>.
 
-    In the Allen Brain Atlas, each atlas (e.g. adult mouse coronal) consists of
-    many 2D section images ("sub_images"), each corresponding to one brain slice.
-    This function queries the Allen API and returns the list of those section-image
-    IDs, which are later used to download SVG boundary files. 
+    This reproduces the working notebook query:
+    model::AtlasImage -> tabular sub_images.id
 
     Args:
-        atlas_id(int): Allen atlas dataset ID. Defaults is 1 (adult mouse coronal).
-                        For adult mouse sagittal sections set ID to 2. 
-        include_failed(bool): If False, tries to exclude failed datasets. These are Allen Datasets that failed quality controls. 
-                        This flag protects you from downloading broken or unusable atlas sections.
-        timeout(int): Request timeout in seconds. If the Allen server does not respond within timeout seconds, stop waiting.
+        atlas_id(int): Atlas ID (1=Mouse P56 Coronal, 2=Mouse P56 Sagittal).
+        group_id(int): Graphic group ID (28=structure boundaries).
+        timeout(int): Request timeout in seconds.
 
     Returns:
-        List[int]: Sorted list of unique section-image IDs.
-
-    Raises:
-        AllenAPIError: If the request fails or no IDs can be parsed.
+        List[int]: List of section IDs (sub_images.id).
     """
-    criteria = [
-        "model::SectionDataSet",
-        "rma::criteria",
-        f"[atlas_data_set_id$eq{atlas_id}]",
-    ]
-    if not include_failed:
-        criteria.append("[failed$eqfalse]")
-
     url = (
         f"{ALLEN_API_BASE}/data/query.csv?"
-        f"criteria={','.join(criteria)},rma::include,sub_images"
+        "criteria=model::AtlasImage,"
+        f"rma::criteria,atlas_data_set(atlases[id$eq{int(atlas_id)}]),"
+        f"graphic_objects(graphic_group_label[id$eq{int(group_id)}]),"
+        "rma::options[tabular$eq'sub_images.id'][order$eq'sub_images.id']"
+        "&num_rows=all&start_row=0"
     )
 
     try:
-        txt = requests.get(url, timeout=timeout).text
+        r = requests.get(url, timeout=timeout)
+        r.raise_for_status()
     except Exception as e:
-        raise AllenAPIError(f"Failed to fetch section IDs: {e}") from e
+        raise AllenAPIError(f"Failed to fetch section IDs: {e}\nURL: {url}") from e
 
-    ids = sorted({
-        int(line.split(",")[0])
-        for line in txt.splitlines()
-        if line.strip() and line.lower() not in ("id", "sub_images.id", "sub_image.id")
-        and line.split(",")[0].isdigit()
-    })
+    df = pd.read_csv(io.StringIO(r.text))
+    if df.empty:
+        raise AllenAPIError(f"Empty response for section IDs.\nURL: {url}\nPreview:\n{r.text[:500]}")
 
+    if "sub_images.id" in df.columns:
+        col = "sub_images.id"
+    else:
+        int_cols = [c for c in df.columns if pd.api.types.is_integer_dtype(df[c])]
+        if not int_cols:
+            raise AllenAPIError(f"Could not find an integer ID column.\nColumns: {list(df.columns)}")
+        col = int_cols[0]
+
+    ids = df[col].dropna().astype(int).tolist()
     if not ids:
-        raise AllenAPIError(
-            "No section-image IDs parsed. The Allen query may have changed.\n"
-            f"URL: {url}\nPreview:\n" + "\n".join(txt.splitlines()[:15])
-        )
+        raise AllenAPIError(f"No IDs parsed.\nURL: {url}\nPreview:\n{r.text[:500]}")
 
     return ids
 
 def download_section_svg(
-        section_image_id: int,
-        out_path: str,
-        group_id: int = DEFAULT_GROUP_ID,
-        cache: bool = True,
-        overwrite: bool = False,
-        timeout: int = 60,
-        )-> str:
+    section_image_id: int,
+    *,
+    group_id: int = DEFAULT_GROUP_ID,
+    timeout: int = 60,
+    ) -> bytes:
     """
     Download and save the SVG structure-boundary file for a single Allen atlas section.
 
@@ -93,11 +87,8 @@ def download_section_svg(
 
     Args:
         section_image_id (int): Allen section image (sub_image) ID.
-        out_path (str): File path where the SVG will be saved.
         group_id (int): Boundary group ID defining which structures are included
                        (default: 28, structure boundaries). 
-        cache (bool): If True, reuse an existing SVG file if present.
-        overwrite (bool):If True, force re-download even if the file already exists.
         timeout (int): Maximum time (seconds) to wait for the Allen API response.
 
     Returns:
@@ -106,22 +97,13 @@ def download_section_svg(
     Raises:
         AllenAPIError: If the SVG download fails.
     """
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-
-    if cache and not overwrite and os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
-        return out_path
-
-    url = f"{ALLEN_API_BASE}/svg_download/{section_image_id}?groups={group_id}"
-
+    url = f"{ALLEN_API_BASE}/svg_download/{int(section_image_id)}?groups={int(group_id)}"
     try:
-        svg_text = requests.get(url, timeout=timeout).text
+        r = requests.get(url, timeout=timeout)
+        r.raise_for_status()
     except Exception as e:
-        raise AllenAPIError(f"Failed to download SVG for section {section_image_id}") from e
-
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(svg_text)
-
-    return out_path
+        raise AllenAPIError(f"Failed to download SVG: {e}\nURL: {url}") from e
+    return r.content
 
 def download_all_svgs(
         out_dir: str,              
