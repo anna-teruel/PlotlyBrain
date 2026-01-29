@@ -1,0 +1,55 @@
+[build-system]
+requires      = [ "setuptools>=61.0" ]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plotlybrain"
+version = "0.1.0"
+description = "placeholder"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = [ "LICENSE" ]
+authors = [
+    { name = "Anna Teruel-Sanchis", email = "teruel.anna@gmail.com" },
+    { name = "Konrad Danielewski", email = "k.danielewski@nencki.edu.pl" },
+]
+keywords = [ "neuroscience", "data-visualization", "data-analysis" ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+dependencies = [
+    "ipykernel",
+    "kaleido",
+    "numpy",
+    "plotly",
+    "pandas",
+    "scipy",
+    "h5py",
+]
+
+    [project.urls]
+    Homepage = "https://github.com/anna-teruel/PlotlyBrain"
+    Issues   = "https://github.com/anna-teruel/PlotlyBrain/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+    [tool.setuptools.packages.find]
+    where      = [ "." ]
+    include    = [ "plotlybrain*" ]
+    namespaces = true
+
+[tool.ruff]
+line-length = 100
+
+    [tool.ruff.format]
+    quote-style  = "double"
+    indent-style = "tab"
+
+    docstring-code-format = true

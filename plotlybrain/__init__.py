@@ -1,3 +1,17 @@
-from plotlybrain.allen_api import fetch_section_image_ids, download_section_svg, download_all_svgs
-from plotlybrain.scores import find_animal_id, load_refatlas_regions, collapse_animal, relative_abundance, frequency_score, save_scores
-from plotlybrain.map_scores import load_score, score_to_hex, get_svg_attr, candidate_ids, recolor_svg_text, recolor_section_svg
+from plotlybrain.allen_api import download_all_svgs, download_section_svg, fetch_section_image_ids
+from plotlybrain.map_scores import (
+    candidate_ids,
+    get_svg_attr,
+    load_score,
+    recolor_section_svg,
+    recolor_svg_text,
+    score_to_hex,
+)
+from plotlybrain.scores import (
+    collapse_animal,
+    find_animal_id,
+    frequency_score,
+    load_refatlas_regions,
+    relative_abundance,
+    save_scores,
+)
