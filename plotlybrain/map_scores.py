@@ -6,22 +6,16 @@ Recolor Allen Brain Atlas sections SVGs using region-level scores
 from __future__ import annotations
 
 import os
-import re
 import math
-from typing import Dict, Optional, Tuple, List, Iterable, Union
-from dataclasses import dataclass
+from typing import Dict, Optional, Tuple, List
 import pandas as pd
 import plotly.express as px
 from plotly.colors import sample_colorscale
 import xml.etree.ElementTree as ET
-from collections import Counter
 
 from .allen_api import (
-    DEFAULT_ATLAS_ID,
     DEFAULT_GROUP_ID,
-    fetch_section_image_ids,
-    download_section_svg,       
-    AllenAPIError,
+    download_section_svg,
 )
 
 def load_score(
