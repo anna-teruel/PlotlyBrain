@@ -2,10 +2,6 @@
 Recolor Allen Brain Atlas sections SVGs using region-level scores
 @author @anna-teruel, Jan 2026, modified by @KonradDanielewski
 """
-"""
-Recolor Allen Brain Atlas sections SVGs using region-level scores
-@author Anna Teruel-Sanchis, Jan 2026
-"""
 
 import math
 import os
@@ -20,8 +16,8 @@ from plotly.colors import sample_colorscale
 
 from .allen_api import download_section_svg
 
-# Optional deps (recommended for robust centroiding on <path>)
-# pip install svgpathtools shapely
+
+# Optional deps for better label placement (recommended)
 try:
 	from svgpathtools import parse_path
 	from svgpathtools import Path as SVGPath
@@ -31,13 +27,18 @@ except Exception:
 
 try:
 	from shapely.geometry import Polygon
+	from shapely.ops import unary_union
 except Exception:
 	Polygon = None
+	unary_union = None
+
+# Shapely 2.x polylabel (best "center" point)
+try:
+	from shapely.ops import polylabel as _polylabel
+except Exception:
+	_polylabel = None
 
 
-# =========================
-# CSV loading
-# =========================
 def load_score(
 	score_csv: str,
 	id_col: str = "Region ID",
@@ -73,9 +74,6 @@ def load_score(
 	return id2value, id2name
 
 
-# =========================
-# Color mapping
-# =========================
 def score_to_hex(
 	value: float | None,
 	*,
@@ -85,7 +83,7 @@ def score_to_hex(
 	na_color: str = "#00000000",
 ) -> str:
 	"""
-	Map a numeric value to a color using a Plotly colorscale.
+	Map a numeric value to a hex/rgb color using a Plotly colorscale.
 
 	Args:
 	    value: Score value to map.
@@ -95,7 +93,7 @@ def score_to_hex(
 	    na_color: Color for missing values (None/NaN).
 
 	Returns:
-	    str: Color string (Plotly returns 'rgb(r,g,b)') or na_color.
+	    str: Color string (Plotly returns rgb(...)) or na_color.
 	"""
 	if value is None or (isinstance(value, float) and math.isnan(value)):
 		return na_color
@@ -110,9 +108,6 @@ def score_to_hex(
 	return sample_colorscale(colorscale, [t], colortype="rgb")[0]
 
 
-# =========================
-# SVG ID handling
-# =========================
 def get_svg_attr(
 	el: ET.Element,
 	key: str,
@@ -182,33 +177,6 @@ def choose_value_from_candidates(
 	return None, None
 
 
-def extract_structure_ids_from_svg_text(svg_text: str) -> list[int]:
-	"""
-	Extract all structure IDs present in an SVG (from structure_id and structure_id_path).
-
-	Args:
-	    svg_text: SVG as text.
-
-	Returns:
-	    Sorted list of unique structure IDs.
-	"""
-	root = ET.fromstring(svg_text)
-	ids = set()
-	for el in root.iter():
-		sid = get_svg_attr(el, "structure_id") or get_svg_attr(el, "structureId")
-		if sid and sid.isdigit():
-			ids.add(int(sid))
-		sid_path = get_svg_attr(el, "structure_id_path") or get_svg_attr(el, "structureIdPath")
-		if sid_path:
-			for p in sid_path.strip("/").split("/"):
-				if p.isdigit():
-					ids.add(int(p))
-	return sorted(ids)
-
-
-# =========================
-# SVG style helpers
-# =========================
 def _apply_fill_and_stroke(
 	el: ET.Element,
 	*,
@@ -276,119 +244,30 @@ def _get_svg_size(
 	return w, h
 
 
-# =========================
-# Transform handling (clean + needed)
-# =========================
-def _mat_identity() -> list[list[float]]:
-	"""3x3 identity matrix."""
-	return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-
-
-def _mat_mul(A: list[list[float]], B: list[list[float]]) -> list[list[float]]:
+def _build_parent_map(root: ET.Element) -> dict[ET.Element, ET.Element]:
 	"""
-	2D affine matrix multiply. Matrices are 3x3.
-
-	This replaces the long "ugly" explicit version with the standard definition:
-	(A @ B)[i,j] = sum_k A[i,k] * B[k,j]
-	"""
-	return [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
-
-
-def _mat_apply(M: list[list[float]], x: float, y: float) -> tuple[float, float]:
-	"""Apply 3x3 affine matrix to (x,y)."""
-	xx = M[0][0] * x + M[0][1] * y + M[0][2]
-	yy = M[1][0] * x + M[1][1] * y + M[1][2]
-	return xx, yy
-
-
-_transform_cmd = re.compile(r"([a-zA-Z]+)\(([^)]*)\)")
-
-
-def _parse_transform(transform: str) -> list[list[list[float]]]:
-	"""
-	Parse SVG transform string into a list of 3x3 matrices (in order).
-
-	Supports:
-	    - matrix(a,b,c,d,e,f)
-	    - translate(tx[,ty])
-	    - scale(sx[,sy])
-	    - rotate(angle[,cx,cy])  (common enough to include)
-
-	Returns:
-	    list of 3x3 matrices, in the same order as SVG applies them.
-	"""
-	mats = []
-	for name, args in _transform_cmd.findall(transform or ""):
-		nums = [float(x) for x in re.findall(r"[-+]?\d*\.?\d+(?:e[-+]?\d+)?", args)]
-		name = name.strip().lower()
-
-		if name == "matrix" and len(nums) == 6:
-			a, b, c, d, e, f = nums
-			mats.append([[a, c, e], [b, d, f], [0.0, 0.0, 1.0]])
-
-		elif name == "translate" and len(nums) >= 1:
-			tx = nums[0]
-			ty = nums[1] if len(nums) >= 2 else 0.0
-			mats.append([[1.0, 0.0, tx], [0.0, 1.0, ty], [0.0, 0.0, 1.0]])
-
-		elif name == "scale" and len(nums) >= 1:
-			sx = nums[0]
-			sy = nums[1] if len(nums) >= 2 else sx
-			mats.append([[sx, 0.0, 0.0], [0.0, sy, 0.0], [0.0, 0.0, 1.0]])
-
-		elif name == "rotate" and len(nums) >= 1:
-			ang = nums[0] * math.pi / 180.0
-			ca = math.cos(ang)
-			sa = math.sin(ang)
-
-			# rotate about origin
-			R = [[ca, -sa, 0.0], [sa, ca, 0.0], [0.0, 0.0, 1.0]]
-
-			# optional center (cx, cy): T(cx,cy) * R * T(-cx,-cy)
-			if len(nums) >= 3:
-				cx, cy = nums[1], nums[2]
-				T1 = [[1.0, 0.0, cx], [0.0, 1.0, cy], [0.0, 0.0, 1.0]]
-				T0 = [[1.0, 0.0, -cx], [0.0, 1.0, -cy], [0.0, 0.0, 1.0]]
-				mats.append(_mat_mul(_mat_mul(T1, R), T0))
-			else:
-				mats.append(R)
-
-	# (skewX/skewY not included; add if you ever see them)
-	return mats
-
-
-def _compose_transform_to_root(el: ET.Element, parent_map: dict[ET.Element, ET.Element]) -> list[list[float]]:
-	"""
-	Compose transforms from root->...->el (document order).
+	Build a child->parent mapping for ET elements.
 
 	Args:
-	    el: element to compute transform for.
-	    parent_map: child -> parent mapping.
+	    root: SVG root element.
 
 	Returns:
-	    3x3 matrix mapping element-local coords to root coords.
+	    dict mapping each child element to its parent.
 	"""
-	chain = []
-	cur = el
-	while cur is not None:
-		chain.append(cur)
-		cur = parent_map.get(cur)
-	chain = list(reversed(chain))
-
-	M = _mat_identity()
-	for node in chain:
-		tf = node.attrib.get("transform")
-		if tf:
-			for m in _parse_transform(tf):
-				M = _mat_mul(M, m)
-	return M
+	return {child: parent for parent in root.iter() for child in parent}
 
 
-# =========================
-# Robust centroid (local coords)
-# =========================
-def _sample_path_to_points(path, n: int = 800) -> list[tuple[float, float]]:
-	"""Sample N points uniformly along path length (works for curves)."""
+def _sample_path_to_points(path, n: int = 900) -> list[tuple[float, float]]:
+	"""
+	Sample points along an svgpathtools Path.
+
+	Args:
+	    path: svgpathtools Path
+	    n: number of samples
+
+	Returns:
+	    list[(x,y)]
+	"""
 	L = path.length(error=1e-4)
 	if L == 0:
 		return []
@@ -398,7 +277,11 @@ def _sample_path_to_points(path, n: int = 800) -> list[tuple[float, float]]:
 
 
 def _continuous_subpaths(path):
-	"""Split into continuous subpaths (handles 'M' breaks)."""
+	"""
+	Split into continuous subpaths (handles 'M' breaks).
+	"""
+	if SVGPath is None:
+		return []
 	sub = []
 	current = []
 	last_end = None
@@ -412,26 +295,29 @@ def _continuous_subpaths(path):
 		last_end = seg.end
 	if current:
 		sub.append(current)
-
-	if SVGPath is None:
-		return []
 	return [SVGPath(*segs) for segs in sub]
 
 
-def _path_to_polygons_from_d(d: str, min_points: int = 40):
-	"""Turn a <path d=...> into shapely Polygons by sampling."""
-	if (parse_path is None) or (Polygon is None) or (not d):
-		return []
+def _path_to_polygons(el: ET.Element, min_points: int = 40):
+	"""
+	Turn a <path d=...> element into one or more shapely Polygons by sampling.
 
+	Returns:
+	    list[Polygon]
+	"""
+	if parse_path is None or Polygon is None:
+		return []
+	d = el.attrib.get("d")
+	if not d:
+		return []
 	try:
 		path = parse_path(d)
 	except Exception:
 		return []
-
 	subpaths = _continuous_subpaths(path)
 	polys = []
 	for sp in subpaths:
-		pts = _sample_path_to_points(sp, n=max(min_points, 800))
+		pts = _sample_path_to_points(sp, n=max(min_points, 900))
 		if len(pts) < 3:
 			continue
 		if pts[0] != pts[-1]:
@@ -445,82 +331,77 @@ def _path_to_polygons_from_d(d: str, min_points: int = 40):
 	return polys
 
 
-def _estimate_centroid_local(
-	el: ET.Element,
-) -> tuple[float, float] | None:
+def _label_point_local(el: ET.Element) -> tuple[float, float] | None:
 	"""
-	Robust centroid in LOCAL element coordinates.
+	Compute a good label point (local coords) for an SVG region shape.
 
-	For <path>:
-	    - sample curve into polygons
-	    - choose largest polygon
-	    - use representative_point() (guaranteed inside)
-	Fallback:
-	    - bbox midpoint using numbers in 'd'
-
-	For polygon/polyline:
-	    - representative_point() if shapely is available
-	    - else mean of vertices
+	Strategy:
+	    1) polylabel (visual center, inside) if available
+	    2) representative_point (inside)
+	    3) centroid
+	    4) bbox midpoint fallback
 
 	Returns:
-	    (cx, cy) in local coords, or None.
+	    (x,y) in element's local coordinate space, or None.
 	"""
 	tag = el.tag.split("}")[-1].lower()
 
-	if tag == "path":
-		d = el.attrib.get("d", "")
-		polys = _path_to_polygons_from_d(d)
-		if polys:
-			big = max(polys, key=lambda p: abs(p.area))
-			try:
-				p = big.representative_point()
-				return float(p.x), float(p.y)
-			except Exception:
-				c = big.centroid
-				return float(c.x), float(c.y)
-
-		# fallback bbox midpoint of d numbers
-		nums = re.findall(r"[-+]?\d*\.?\d+(?:e[-+]?\d+)?", d)
-		if len(nums) >= 4:
-			vals = list(map(float, nums))
-			xs = vals[0::2]
-			ys = vals[1::2]
-			if len(xs) >= 2 and len(ys) >= 2:
-				return (min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0
+	# We focus on path-based regions (Allen boundaries are usually paths)
+	if tag != "path":
+		# Fallback: bbox from any numeric coords we can find (often not great)
+		if tag in {"polygon", "polyline"}:
+			pts = el.attrib.get("points", "")
+			nums = re.findall(r"[-+]?\d*\.?\d+(?:e[-+]?\d+)?", pts)
+			if len(nums) >= 4:
+				vals = list(map(float, nums))
+				xs = vals[0::2]
+				ys = vals[1::2]
+				if len(xs) >= 2 and len(ys) >= 2:
+					return (min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0
 		return None
 
-	if tag in {"polygon", "polyline"}:
-		points = el.attrib.get("points", "")
-		nums = re.findall(r"[-+]?\d*\.?\d+(?:e[-+]?\d+)?", points)
-		if len(nums) < 4:
-			return None
-		vals = list(map(float, nums))
-		if len(vals) % 2 != 0:
-			vals = vals[:-1]
-		pts = list(zip(vals[0::2], vals[1::2]))
-		if len(pts) < 3:
-			return None
-
-		if Polygon is not None:
+	polys = _path_to_polygons(el)
+	if polys:
+		geom = None
+		if unary_union is not None:
 			try:
-				poly = Polygon(pts)
-				if not poly.is_valid:
-					poly = poly.buffer(0)
-				if not poly.is_empty:
-					p = poly.representative_point()
-					return float(p.x), float(p.y)
+				geom = unary_union(polys)
 			except Exception:
-				pass
+				geom = None
+		if geom is None:
+			geom = max(polys, key=lambda p: abs(p.area))
 
-		xs = [p[0] for p in pts]
-		ys = [p[1] for p in pts]
-		return float(np.mean(xs)), float(np.mean(ys))
+		if geom is not None and (not geom.is_empty):
+			if _polylabel is not None:
+				try:
+					p = _polylabel(geom, tolerance=1.0)
+					return float(p.x), float(p.y)
+				except Exception:
+					pass
+			try:
+				p = geom.representative_point()
+				return float(p.x), float(p.y)
+			except Exception:
+				c = geom.centroid
+				return float(c.x), float(c.y)
+
+	# bbox fallback for path 'd'
+	d = el.attrib.get("d", "")
+	nums = re.findall(r"[-+]?\d*\.?\d+(?:e[-+]?\d+)?", d)
+	if len(nums) >= 4:
+		vals = list(map(float, nums))
+		xs = vals[0::2]
+		ys = vals[1::2]
+		if len(xs) >= 2 and len(ys) >= 2:
+			return (min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0
 
 	return None
 
 
-def _append_label_text(
-	parent: ET.Element,
+def _append_label_same_parent(
+	root: ET.Element,
+	parent_map: dict[ET.Element, ET.Element],
+	el: ET.Element,
 	*,
 	x: float,
 	y: float,
@@ -532,82 +413,87 @@ def _append_label_text(
 	halo_width: float = 3.0,
 ) -> NoReturn:
 	"""
-	Append <text> at (x,y). Use halo for readability.
+	Append a <text> label to the SAME parent as `el` (like your lxml script).
 
-	IMPORTANT:
-	    Here we append to ROOT using ROOT coordinates (after applying transforms).
+	This avoids coordinate-space issues from nested <g transform="...">.
+	Optionally copies element-level transform onto the text.
+
+	Args:
+	    root: SVG root.
+	    parent_map: child->parent mapping.
+	    el: target SVG element (region shape).
+	    x,y: local coordinates.
+	    text: label text.
 	"""
-	if halo:
-		t_halo = ET.SubElement(
-			parent,
-			"text",
-			{
-				"x": str(x),
-				"y": str(y),
-				"fill": "none",
-				"stroke": halo_color,
-				"stroke-width": str(halo_width),
-				"paint-order": "stroke",
-				"font-size": str(font_size),
-				"font-family": "Arial",
-				"text-anchor": "middle",
-				"dominant-baseline": "middle",
-			},
-		)
-		t_halo.text = text
+	parent = parent_map.get(el, root)
 
-	t = ET.SubElement(
-		parent,
-		"text",
-		{
+	# If the shape has its own transform, copy it to the label.
+	el_transform = el.attrib.get("transform")
+
+	style_base = (
+		f"font-size:{font_size}px;"
+		"font-family:Arial;"
+		"text-anchor:middle;"
+		"dominant-baseline:middle;"
+	)
+
+	def _make_text(*, do_halo: bool) -> ET.Element:
+		attrib = {
 			"x": str(x),
 			"y": str(y),
-			"fill": fill,
-			"font-size": str(font_size),
-			"font-family": "Arial",
-			"text-anchor": "middle",
-			"dominant-baseline": "middle",
-		},
-	)
-	t.text = text
+			"style": style_base,
+		}
+		if el_transform:
+			attrib["transform"] = el_transform
+
+		if do_halo:
+			attrib["fill"] = "none"
+			attrib["stroke"] = halo_color
+			attrib["stroke-width"] = str(halo_width)
+			attrib["paint-order"] = "stroke"
+		else:
+			attrib["fill"] = fill
+
+		t = ET.SubElement(parent, "text", attrib)
+		t.text = text
+		return t
+
+	if halo:
+		_make_text(do_halo=True)
+	_make_text(do_halo=False)
 
 
-# =========================
-# Colorbar overlay (ticks > min/max)
-# =========================
 def _add_colorbar_group(
 	root: ET.Element,
 	*,
 	cmap: str,
 	vmin: float,
 	vmax: float,
+	title: str,
 	x: float,
 	y: float,
 	bar_w: float = 18,
 	bar_h: float = 220,
-	n_steps: int = 140,
+	n_steps: int = 120,
 	n_ticks: int = 7,
 	font_size: int = 12,
-	title: str = "score",
 ) -> NoReturn:
 	"""
-	Add a vertical colorbar (approximated with many thin rects) with multiple tick labels.
+	Add a vertical colorbar (many thin rects) with multiple tick labels.
 
 	Args:
 	    root: SVG root.
 	    cmap: Plotly colorscale name.
 	    vmin/vmax: scale min/max.
-	    x/y: position.
-	    bar_w/bar_h: bar size.
-	    n_steps: gradient resolution.
-	    n_ticks: number of labeled ticks (>=2).
-	    title: colorbar title.
+	    title: label.
+	    x/y: top-left of bar.
+	    n_ticks: number of labeled ticks.
 	"""
 	g = ET.SubElement(root, "g", {"id": "plotlybrain_colorbar"})
 
 	step_h = bar_h / n_steps
 	for i in range(n_steps):
-		t = 1.0 - i / (n_steps - 1)  # top=vmax
+		t = 1.0 - i / (n_steps - 1)
 		val = vmin + t * (vmax - vmin)
 		col = score_to_hex(val, cmap=cmap, vmin=vmin, vmax=vmax)
 		ET.SubElement(
@@ -650,9 +536,9 @@ def _add_colorbar_group(
 
 	n_ticks = max(2, int(n_ticks))
 	for j in range(n_ticks):
-		tt = j / (n_ticks - 1)  # 0 bottom .. 1 top
-		val = vmin + tt * (vmax - vmin)
-		yy = y + bar_h * (1.0 - tt)
+		f = j / (n_ticks - 1)  # 0..1
+		val = vmin + f * (vmax - vmin)
+		yy = y + (1.0 - f) * bar_h
 
 		ET.SubElement(
 			g,
@@ -660,7 +546,7 @@ def _add_colorbar_group(
 			{
 				"x1": str(x + bar_w),
 				"y1": str(yy),
-				"x2": str(x + bar_w + 5),
+				"x2": str(x + bar_w + 6),
 				"y2": str(yy),
 				"stroke": "#333333",
 				"stroke-width": "0.8",
@@ -671,7 +557,7 @@ def _add_colorbar_group(
 			g,
 			"text",
 			{
-				"x": str(x + bar_w + 8),
+				"x": str(x + bar_w + 9),
 				"y": str(yy),
 				"font-size": str(font_size),
 				"fill": "#222222",
@@ -680,9 +566,6 @@ def _add_colorbar_group(
 		).text = f"{val:.3g}"
 
 
-# =========================
-# Main recoloring function
-# =========================
 def recolor_svg_text(
 	svg_text: str,
 	id2value: dict[int, float],
@@ -698,34 +581,31 @@ def recolor_svg_text(
 	colorbar_title: str = "score",
 	colorbar_ticks: int = 7,
 	add_centroid_labels: bool = True,
-	label_value: bool = True,
-	label_font_size: int = 9,
+	label_font_size: int = 10,
 	label_value_fmt: str = ".2f",
 	label_max_chars: int = 40,
+	label_value: bool = True,
 ) -> str:
 	"""
-	Recolor an Allen Brain Atlas SVG text by region-level scores.
-	Optionally embed a colorbar and place centroid labels on each painted region.
-
-	IMPORTANT:
-	    Labels are placed using root coordinates after applying the full transform chain,
-	    so they overlay correctly even when the SVG contains nested transforms.
+	Recolor an Allen Brain Atlas SVG text by region-level scores, and optionally:
+	- add an in-SVG colorbar with multiple ticks
+	- add region labels placed at a visually centered point inside each region
 
 	Args:
 	    svg_text: Original SVG text.
 	    id2value: structure_id -> score value.
-	    id2name: structure_id -> region name (optional; required for labels).
+	    id2name: structure_id -> region name (for labels).
 	    cmap: Plotly colorscale name.
-	    vmin/vmax: color normalization range (default inferred).
-	    stroke/stroke_width: outline.
-	    opacity: fill opacity.
-	    na_fill: fill for val==0 or missing, typically "none".
-	    add_colorbar: embed a colorbar.
-	    colorbar_title: label above the colorbar.
+	    vmin/vmax: color normalization (default inferred).
+	    stroke/stroke_width: outline style.
+	    opacity: fill opacity for colored shapes.
+	    na_fill: fill for missing/zero values ("none" for transparent).
+	    add_colorbar: whether to embed colorbar.
+	    colorbar_title: colorbar label.
 	    colorbar_ticks: number of tick labels.
-	    add_centroid_labels: add region name labels.
-	    label_value: include the numeric value in label.
+	    add_centroid_labels: whether to label regions.
 	    label_font_size/value_fmt/max_chars: label formatting.
+	    label_value: include numeric value in label.
 
 	Returns:
 	    Recolored SVG text.
@@ -738,9 +618,9 @@ def recolor_svg_text(
 	vmax = max(vals) if vmax is None else float(vmax)
 
 	root = ET.fromstring(svg_text)
-	parent_map = {child: parent for parent in root.iter() for child in parent}
+	parent_map = _build_parent_map(root)
 
-	labeled_sids: set[int] = set()
+	labeled: set[int] = set()
 
 	for el in root.iter():
 		tag = el.tag.split("}")[-1].lower()
@@ -752,7 +632,7 @@ def recolor_svg_text(
 		if sid_used is None:
 			continue
 
-		# fill logic (you can change this if you want 0.0 to be colored instead of blank)
+		# Your original behavior: val==0 -> na_fill (transparent)
 		if val == 0.0:
 			fill = na_fill
 			fill_opacity = 0.0 if na_fill == "none" else 1.0
@@ -768,37 +648,30 @@ def recolor_svg_text(
 			stroke_width=stroke_width,
 		)
 
-		# centroid labels (once per region id used)
-		if add_centroid_labels and (id2name is not None) and (sid_used not in labeled_sids):
-			xy_local = _estimate_centroid_local(el)
-			if xy_local is None:
-				continue
+		# labels (once per sid)
+		if add_centroid_labels and id2name is not None and sid_used not in labeled:
+			xy = _label_point_local(el)
+			if xy is not None:
+				name = id2name.get(sid_used, f"ID {sid_used}")
+				if len(name) > label_max_chars:
+					name = name[: max(0, label_max_chars - 1)] + "…"
 
-			# local -> root coords (THIS is what makes overlays correct)
-			M = _compose_transform_to_root(el, parent_map)
-			xx, yy = _mat_apply(M, float(xy_local[0]), float(xy_local[1]))
+				txt = name
+				if label_value and (val is not None) and not (isinstance(val, float) and math.isnan(val)):
+					txt = f"{name} ({val:{label_value_fmt}})"
 
-			name = id2name.get(sid_used, f"ID {sid_used}")
-			if len(name) > label_max_chars:
-				name = name[: max(0, label_max_chars - 1)] + "…"
-
-			if label_value and (val is not None) and not (isinstance(val, float) and math.isnan(val)):
-				label_txt = f"{name} ({val:{label_value_fmt}})"
-			else:
-				label_txt = name
-
-			_append_label_text(
-				root,
-				x=float(xx),
-				y=float(yy),
-				text=label_txt,
-				font_size=label_font_size,
-				fill="#000000",
-				halo=True,
-				halo_color="#ffffff",
-				halo_width=3.0,
-			)
-			labeled_sids.add(sid_used)
+				_append_label_same_parent(
+					root,
+					parent_map,
+					el,
+					x=float(xy[0]),
+					y=float(xy[1]),
+					text=txt,
+					font_size=label_font_size,
+					fill="#000000",
+					halo=True,
+				)
+				labeled.add(sid_used)
 
 	# colorbar
 	if add_colorbar:
@@ -810,6 +683,7 @@ def recolor_svg_text(
 			cmap=cmap,
 			vmin=vmin,
 			vmax=vmax,
+			title=colorbar_title,
 			x=legend_x,
 			y=legend_y,
 			bar_w=18,
@@ -817,7 +691,6 @@ def recolor_svg_text(
 			n_steps=140,
 			n_ticks=int(colorbar_ticks),
 			font_size=12,
-			title=colorbar_title,
 		)
 
 	return ET.tostring(root, encoding="unicode")
@@ -840,10 +713,10 @@ def recolor_section_svg(
 	colorbar_title: str = "score",
 	colorbar_ticks: int = 7,
 	add_centroid_labels: bool = True,
-	label_value: bool = True,
-	label_font_size: int = 9,
+	label_font_size: int = 10,
 	label_value_fmt: str = ".2f",
 	label_max_chars: int = 40,
+	label_value: bool = True,
 ) -> str:
 	"""
 	Download an Allen section SVG, recolor it by score, and save it.
@@ -858,11 +731,16 @@ def recolor_section_svg(
 	    overwrite: If True, overwrite existing out_path.
 	    timeout: Request timeout (seconds).
 	    cmap: Plotly colorscale name.
-	    vmin/vmax: Min/Max for color normalization.
-	    encoding: SVG decode encoding.
+	    vmin/vmax: normalization range.
+	    encoding: Encoding used to decode SVG bytes.
+	    add_colorbar: embed a colorbar.
+	    colorbar_title: colorbar label.
+	    colorbar_ticks: tick count.
+	    add_centroid_labels: add labels.
+	    label_*: label formatting.
 
 	Returns:
-	    Path to saved recolored SVG.
+	    Path to the saved recolored SVG.
 	"""
 	os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
@@ -891,10 +769,10 @@ def recolor_section_svg(
 		colorbar_title=colorbar_title,
 		colorbar_ticks=colorbar_ticks,
 		add_centroid_labels=add_centroid_labels,
-		label_value=label_value,
 		label_font_size=label_font_size,
 		label_value_fmt=label_value_fmt,
 		label_max_chars=label_max_chars,
+		label_value=label_value,
 	)
 
 	with open(out_path, "w", encoding=encoding) as f:
