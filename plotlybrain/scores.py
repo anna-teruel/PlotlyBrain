@@ -11,6 +11,7 @@ import pandas as pd
 from scipy.stats import zscore
 
 ScoreName = Literal["rel_abundance", "frequency"]
+RelAbundanceMethod = Literal["within", "reference"]
 ScoreFn = Callable[[pd.DataFrame], pd.DataFrame]
 
 
@@ -29,7 +30,6 @@ def find_animal_id(filename: str) -> str:
 	base = base.split("_RefAtlasRegions")[0]
 
 	return base.split("-")[0]
-
 
 def load_refatlas_regions(
 	data_dir: str,
@@ -72,7 +72,6 @@ def load_refatlas_regions(
 		out.append(df)
 	return pd.concat(out, ignore_index=True)
 
-
 def collapse_animal(
 	df: pd.DataFrame,
 	col_id: str = "Region ID",
@@ -99,7 +98,6 @@ def collapse_animal(
 		.agg(objects=(col_count, "sum"))
 		.reset_index()
 	)
-
 
 def relative_abundance(
 	region_by_subject: pd.DataFrame,
@@ -144,7 +142,6 @@ def relative_abundance(
 		nan_policy="omit",
 	)
 	return region_abundance
-
 
 def frequency_score(
 	region_by_subject: pd.DataFrame,
