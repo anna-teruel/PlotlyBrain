@@ -72,16 +72,21 @@ def load_refatlas_regions(
 		out.append(df)
 	return pd.concat(out, ignore_index=True)
 
-def collapse_animal(
+def compute_animal_region_counts(
 	df: pd.DataFrame,
 	col_id: str = "Region ID",
 	col_name: str = "Region name",
 	col_count: str = "Object count",
 ) -> pd.DataFrame:
 	"""
-	Collapse raw rows into per-animal, per-region total object counts.
-	After loading the data, it might contain multiple rows per animal and region.
-	For downstream analysis, you want one value per animal.
+	Collapse raw QUINT rows into per-animal, per-region object counts.
+
+	In QUINT exports, the same brain region may appear multiple times for a
+	given animal. For example, when a region is subdivided into anatomical
+	subregions such as parts of CA1 (e.g. cornus amonis). This function aggregates 
+	those rows so that each animal–region pair has a single value representing the 
+	total number of detected objects. For downstream analysis, having one value per 
+	animal and region is required.
 
 	Args:
 	    df: Output of load_refatlas_regions().
@@ -99,51 +104,158 @@ def collapse_animal(
 		.reset_index()
 	)
 
-def relative_abundance(
-	region_by_subject: pd.DataFrame,
-	col_id: str = "Region ID",
-	col_name: str = "Region name",
+def compute_region_counts(
+    region_by_subject: pd.DataFrame,
+    col_id: str = "Region ID",
+    col_name: str = "Region name",
 ) -> pd.DataFrame:
-	"""
-	Compute region-level relative abundance of objects across animals.
+    """
+    Aggregate per-animal counts into one row per region.
 
-	For each brain region, object counts are summed across all animals
-	to obtain a total abundance measure. These totals are then
-	z-scored across regions to quantify relative enrichment or
-	depletion with respect to the atlas-wide mean.
+	This function summarizes the per-animal region table by collapsing
+	across animals. For each brain region, it computes the total number of
+	detected objects across all animals and the number of animals that
+	contributed observations to that region.
 
-	Args:
-	    region_by_subject: output of
-	                    collapse_animal, containing
-	                    per-animal object counts for each region.
-	    col_id: column name for the Allen region ID.
-	    col_name: column name for the region name.
+    Returns:
+        DataFrame with columns:
+            [col_id, col_name, objects_total, n_animals]
+    """
+    return (
+        region_by_subject.groupby([col_id, col_name], dropna=True)
+        .agg(
+            objects_total=("objects", "sum"),
+            n_animals=("animal", "nunique"),
+        )
+        .reset_index()
+    )
 
-	Returns:
-	    pandas.DataFrame: Region-level table with columns:
-	        - col_id: Allen region ID
-	        - col_name: Region name
-	        - objects_total: Total number of objects across animals
-	        - n_animals: Number of animals contributing to the region
-	        - relative_abundance_z: Z-scored relative abundance
-	"""
-	region_abundance = (
-		region_by_subject.groupby([col_id, col_name], dropna=True)
-		.agg(
-			objects_total=("objects", "sum"),
-			n_animals=("animal", "nunique"),
-		)
-		.reset_index()
-	)
 
-	region_abundance["relative_abundance_z"] = zscore(
-		region_abundance["objects_total"],
-		ddof=0,  # delta degrees of freedom, 0 means population std
-		nan_policy="omit",
-	)
-	return region_abundance
+def compute_reference_stats(
+    region_by_subject: pd.DataFrame,
+    col_id: str = "Region ID",
+    col_name: str = "Region name",
+) -> dict[str, float]:
+    """
+    Fit a shared reference distribution for relative abundance z-scoring.
 
-def frequency_score(
+    The reference is computed from region-level total object counts
+    aggregated across the supplied reference dataset.
+
+    Args:
+        region_by_subject: Output of compute_animal_region_counts() for the reference dataset.
+        col_id: Region ID column.
+        col_name: Region name column.
+
+    Returns:
+        dict with:
+            - reference_mean
+            - reference_std
+            - n_regions_reference
+    """
+    region_totals = compute_region_counts(
+        region_by_subject,
+        col_id=col_id,
+        col_name=col_name,
+    )
+
+    ref_mean = float(region_totals["objects_total"].mean())
+    ref_std = float(region_totals["objects_total"].std(ddof=0))
+
+    if ref_std == 0:
+        raise ValueError("Reference standard deviation is 0; cannot compute z-scores.")
+
+    return {
+        "reference_mean": ref_mean,
+        "reference_std": ref_std,
+        "n_regions_reference": int(len(region_totals)),
+    }
+
+
+def relative_abundance(
+    region_by_subject: pd.DataFrame,
+    col_id: str = "Region ID",
+    col_name: str = "Region name",
+    method: RelAbundanceMethod = "within",
+    reference_stats: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    """
+    Compute region-level relative abundance of objects across animals.
+
+    Relative abundance quantifies whether a brain region contains more or fewer
+	detected objects than expected relative to the overall distribution of objects
+	across the atlas. The metric is based on the total number of objects detected
+	in each region across all animals and expresses this value as a z-score.
+
+	Two modes are supported:
+    - method="within":
+        z-score region totals within the same dataset
+        (old behavior; not cross-cohort comparable). 
+		This parameter is only meaningful inside a given cohort. 
+    - method="reference":
+        z-score region totals using a shared reference mean/std
+        computed from an external pooled or control dataset
+        (cross-cohort comparable)
+
+    Args:
+        region_by_subject: Output of compute_animal_region_counts(), containing
+                           per-animal object counts for each region.
+        col_id: Column name for the Allen region ID.
+        col_name: Column name for the region name.
+        method: "within" or "reference".
+        reference_stats: Output of compute_reference_stats()
+                         when method="reference".
+
+    Returns:
+        Region-level table with columns:
+            - col_id
+            - col_name
+            - objects_total
+            - n_animals
+            - relative_abundance_z
+            - rel_abundance_method
+            - reference_mean (if method="reference")
+            - reference_std (if method="reference")
+    """
+    region_abundance = compute_region_counts(
+        region_by_subject,
+        col_id=col_id,
+        col_name=col_name,
+    )
+
+    if method == "within":
+        region_abundance["relative_abundance_z"] = zscore(
+            region_abundance["objects_total"],
+            ddof=0,
+            nan_policy="omit",
+        )
+        region_abundance["rel_abundance_method"] = "within"
+
+    elif method == "reference":
+        if reference_stats is None:
+            raise ValueError(
+                "reference_stats must be provided when method='reference'."
+            )
+
+        ref_mean = float(reference_stats["reference_mean"])
+        ref_std = float(reference_stats["reference_std"])
+
+        if ref_std == 0:
+            raise ValueError("reference_std is 0; cannot compute z-scores.")
+
+        region_abundance["relative_abundance_z"] = (
+            region_abundance["objects_total"] - ref_mean
+        ) / ref_std
+        region_abundance["rel_abundance_method"] = "reference"
+        region_abundance["reference_mean"] = ref_mean
+        region_abundance["reference_std"] = ref_std
+
+    else:
+        raise ValueError("method must be one of {'within', 'reference'}.")
+
+    return region_abundance
+
+def consistency_score(
 	region_by_subject: pd.DataFrame,
 	col_id: str = "Region ID",
 	col_name: str = "Region name",
@@ -155,7 +267,7 @@ def frequency_score(
 	observed across the cohort, independent of the absolute object counts.
 
 	Args:
-	    region_by_subject: Output of collapse_animal, containing
+	    region_by_subject: Output of compute_animal_region_counts, containing
 	                    one row per (animal, region) with a per-animal object count
 	                    stored in the 'objects' column.
 	    col_id: Column name for the Allen region ID.
@@ -235,7 +347,7 @@ def save_scores(
 		col_count=col_count,
 		exclude_region_ids=exclude_region_ids,
 	)
-	region_by_subject = collapse_animal(
+	region_by_subject = compute_animal_region_counts(
 		df,
 		col_id=col_id,
 		col_name=col_name,
@@ -245,7 +357,7 @@ def save_scores(
 	if score_fn is None:
 		scorers: dict[str, ScoreFn] = {
 			"rel_abundance": lambda df: relative_abundance(df, col_id=col_id, col_name=col_name),
-			"frequency": lambda df: frequency_score(df, col_id=col_id, col_name=col_name),
+			"frequency": lambda df: consistency_score(df, col_id=col_id, col_name=col_name),
 		}
 		try:
 			score_fn = scorers[score]
