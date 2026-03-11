@@ -10,7 +10,6 @@ from typing import NoReturn
 import pandas as pd
 import plotly.express as px
 from plotly.colors import sample_colorscale
-
 from .allen_api import download_section_svg
 
 
