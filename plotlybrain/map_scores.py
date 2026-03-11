@@ -2,29 +2,23 @@
 Recolor Allen Brain Atlas sections SVGs using region-level scores
 @author @anna-teruel, Jan 2026, modified by @KonradDanielewski
 """
-
 import math
 import os
 import re
 import xml.etree.ElementTree as ET
 from typing import NoReturn
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 from plotly.colors import sample_colorscale
-
 from .allen_api import download_section_svg
 
-
-# Optional deps for better label placement (recommended)
 try:
 	from svgpathtools import parse_path
 	from svgpathtools import Path as SVGPath
 except Exception:
 	parse_path = None
 	SVGPath = None
-
 try:
 	from shapely.geometry import Polygon
 	from shapely.ops import unary_union
@@ -32,12 +26,10 @@ except Exception:
 	Polygon = None
 	unary_union = None
 
-# Shapely 2.x polylabel (best "center" point)
 try:
 	from shapely.ops import polylabel as _polylabel
 except Exception:
 	_polylabel = None
-
 
 def load_score(
 	score_csv: str,
