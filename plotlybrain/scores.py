@@ -37,6 +37,7 @@ def load_refatlas_regions(
 	col_id: str = "Region ID",
 	col_name: str = "Region name",
 	col_count: str = "Object count",
+	col_area: str = "Region area",
 	exclude_region_ids: set[int] = {0, 997},
 ) -> pd.DataFrame:
 	"""
@@ -48,6 +49,7 @@ def load_refatlas_regions(
 	    col_id: Column name for the Allen region ID.
 	    col_name: Column name for the region name.
 	    col_count: Column name for the object count.
+		col_area: Column name for the region area (typically in squared pixels).
 	    exclude_region_ids: Region IDs to exclude
 	                    (e.g. background/root).
 
@@ -67,6 +69,8 @@ def load_refatlas_regions(
 		df["animal"] = find_animal_id(file)
 		df[col_id] = pd.to_numeric(df[col_id], errors="coerce").astype("Int64")
 		df[col_count] = pd.to_numeric(df[col_count], errors="coerce").fillna(0)
+		df[col_area] = pd.to_numeric(df[col_area], errors="coerce").fillna(0)
+
 		if exclude_region_ids:
 			df = df[~df[col_id].isin(exclude_region_ids)]
 		out.append(df)
@@ -77,6 +81,7 @@ def compute_animal_region_counts(
 	col_id: str = "Region ID",
 	col_name: str = "Region name",
 	col_count: str = "Object count",
+	col_area: str = "Region area",
 ) -> pd.DataFrame:
 	"""
 	Collapse raw QUINT rows into per-animal, per-region object counts.
@@ -100,7 +105,10 @@ def compute_animal_region_counts(
 	"""
 	return (
 		df.groupby(["animal", col_id, col_name], dropna=True)
-		.agg(objects=(col_count, "sum"))
+		.agg(
+			objects=(col_count, "sum"),
+			region_area=(col_area, "mean"),
+			)
 		.reset_index()
 	)
 
@@ -266,6 +274,8 @@ def consistency_score(
 	given brain region. This provides a measure of how consistently a signal is
 	observed across the cohort, independent of the absolute object counts.
 
+	This score is cohort-dependent. Should be run for each cohort independently. 
+
 	Args:
 	    region_by_subject: Output of compute_animal_region_counts, containing
 	                    one row per (animal, region) with a per-animal object count
@@ -303,6 +313,55 @@ def consistency_score(
 
 	return region_freq
 
+def density_score(
+    region_by_subject: pd.DataFrame,
+    col_id: str = "Region ID",
+    col_name: str = "Region name",
+    area_col: str = "region_area",
+) -> pd.DataFrame:
+    """
+    Compute region-level object density across animals.
+
+    Density is defined as the total number of detected objects divided by the
+    total region area across animals.
+
+    Interpretation:
+        - Higher density values indicate that objects are more concentrated
+          within that region.
+        - Lower density values indicate sparser signal.
+
+    Args:
+        region_by_subject: DataFrame with one row per (animal, region),
+            containing columns 'objects' and region area.
+        col_id: Column name for the Allen region ID.
+        col_name: Column name for the region name.
+        area_col: Column containing per-animal region area.
+
+    Returns:
+        pandas.DataFrame with one row per region and columns:
+            - col_id
+            - col_name
+            - objects_total
+            - area_total
+            - n_animals
+            - density
+    """
+    region_density = (
+        region_by_subject.groupby([col_id, col_name], dropna=True)
+        .agg(
+            objects_total=("objects", "sum"),
+            area_total=(area_col, "mean"),
+            n_animals=("animal", "nunique"),
+        )
+        .reset_index()
+    )
+
+    region_density["density"] = (
+        region_density["objects_total"] / region_density["area_total"]
+    )
+    region_density.loc[region_density["area_total"] <= 0, "density"] = pd.NA
+
+    return region_density
 
 def save_scores(
 	data_dir: str,
@@ -313,6 +372,7 @@ def save_scores(
 	col_id: str = "Region ID",
 	col_name: str = "Region name",
 	col_count: str = "Object count",
+	col_area: str = "Region area",
 	exclude_region_ids: set[int] = {0, 997},
 ) -> pd.DataFrame:
 	"""
@@ -331,6 +391,7 @@ def save_scores(
 	    col_id: Column name for the Allen region ID.
 	    col_name: Column name for the region name.
 	    col_count: Column name for the object count.
+		col_area: Column name for the region are (in pixels).
 	    exclude_region_ids: Region IDs to exclude (e.g. background/root).
 
 	Returns:
@@ -345,6 +406,7 @@ def save_scores(
 		col_id=col_id,
 		col_name=col_name,
 		col_count=col_count,
+		col_area = col_area,
 		exclude_region_ids=exclude_region_ids,
 	)
 	region_by_subject = compute_animal_region_counts(
@@ -352,12 +414,14 @@ def save_scores(
 		col_id=col_id,
 		col_name=col_name,
 		col_count=col_count,
+		col_area = col_area,
 	)
 
 	if score_fn is None:
 		scorers: dict[str, ScoreFn] = {
 			"rel_abundance": lambda df: relative_abundance(df, col_id=col_id, col_name=col_name),
 			"frequency": lambda df: consistency_score(df, col_id=col_id, col_name=col_name),
+			"density" : lambda df: density_score(df, col_id=col_id, col_name=col_name, area_col=col_area)
 		}
 		try:
 			score_fn = scorers[score]
