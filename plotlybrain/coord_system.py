@@ -32,6 +32,18 @@ class CCFConfig:
 def get_ccf_config(
         resolution_um:int
 ) -> CCFConfig:
+    """
+    Compute approximate Allen CCF bregma indices for a given voxel resolution.
+    The physical bregma position is assumed to be approximately: ML = 5400 µm
+    DV = 450 µm, AP = 5700 µm
+
+    Args:
+        resolution_um : int
+            Atlas voxel size in microns.
+
+    Returns:
+        CCFConfig: Configuration object with resolution and approximate bregma indices.
+    """
     #bregma position, microns
     BREGMA_ML_UM = 5400
     BREGMA_DV_UM = 450
