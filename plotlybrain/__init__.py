@@ -29,4 +29,19 @@ from plotlybrain.coord_system import (
     slice_index_to_ap_mm,
     ap_range_mm_to_slice_indices
 )
+from plotlybrain.build_polygons import(
+    BuildConfig,
+    slice_index, 
+    download_file,
+    download_bytes,
+    load_annotation_volume,
+    load_structure_graph,
+    get_slice_view,
+    slice_count,
+    mask_to_polygon,
+    build_slice_geojson,
+    save_slice_geojson,
+    build_geojson_slices,
+    build_selected_slices
+)
 
