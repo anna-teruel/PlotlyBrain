@@ -3,7 +3,7 @@ Utilities to convert between Allen CCF slice indices and
 approximate AP coordinates relative to bregma.
 
 https://community.brain-map.org/t/how-to-transform-ccf-x-y-z-coordinates-into-stereotactic-coordinates/1858
-@author @anna-teruel, Jan 2026, modified by @KonradDanielewski
+@author @anna-teruel, Mar 2026
 """
 
 from dataclasses import dataclass
@@ -44,7 +44,6 @@ def get_ccf_config(
         bregma_ap_index=round(BREGMA_AP_UM / resolution_um),
     )
 
-
 def ap_mm_to_slice_index(
         ap_mm: float, 
         resolution_um: int = 25,
@@ -69,7 +68,6 @@ def ap_mm_to_slice_index(
     offset_voxels = round((ap_mm * 1000.0) / cfg.resolution_um)
     return int(cfg.bregma_ap_index + offset_voxels)
 
-
 def slice_index_to_ap_mm(
         slice_index: int, 
         resolution_um: int = 25,
@@ -90,7 +88,6 @@ def slice_index_to_ap_mm(
     cfg = get_ccf_config(resolution_um)
     offset_voxels = slice_index - cfg.bregma_ap_index
     return (offset_voxels * cfg.resolution_um) / 1000.0
-
 
 def ap_range_mm_to_slice_indices(
     ap_start_mm: float,
