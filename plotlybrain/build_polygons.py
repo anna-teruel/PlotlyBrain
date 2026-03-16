@@ -218,7 +218,9 @@ def load_annotation_volume(
 
     if storage_mode == "memory":
         raw = download_bytes(url)
-        volume, header = nrrd.read(io.BytesIO(raw))
+        fh = io.BytesIO(raw)
+        header = nrrd.read_header(fh)
+        volume = nrrd.read_data(header, fh, filename=None)
         return volume, header
 
     raise ValueError(f"Unknown storage_mode: {storage_mode}")
@@ -312,11 +314,11 @@ def get_slice_view(
             2D array representing the selected slice.
     """
     if orientation == "coronal":
-        return volume[:, index, :]
-    if orientation == "sagittal":
         return volume[index, :, :]
-    if orientation == "horizontal":
+    if orientation == "sagittal":
         return volume[:, :, index]
+    if orientation == "horizontal":
+        return volume[:, index, :]
     raise ValueError(f"Unknown orientation: {orientation}")
 
 def slice_count(
@@ -336,11 +338,11 @@ def slice_count(
 
     """
     if orientation == "coronal":
-        return volume.shape[1]
+        return volume.shape[0] #AP
     if orientation == "sagittal":
-        return volume.shape[0]
+        return volume.shape[2] #ML
     if orientation == "horizontal":
-        return volume.shape[2]
+        return volume.shape[1] #DV
     raise ValueError(f"Unknown orientation: {orientation}")
 
 def mask_to_polygon(
@@ -650,7 +652,11 @@ def build_selected_slices(cfg: BuildConfig) -> None:
     )
 
     volume, header = nrrd.read(ann_path)
-    structure_df = load_structure_graph(graph_path)
+    structure_df = load_structure_graph(
+        storage_mode=cfg.storage_mode,
+        cache_dir=cfg.out_dir,
+        overwrite=cfg.overwrite,
+    )
 
     n_slices = slice_count(volume, cfg.orientation)
     selected_indices = slice_index(cfg, n_slices=n_slices)
