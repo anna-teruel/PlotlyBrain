@@ -1,17 +1,3 @@
-from plotlybrain.allen_api import (
-    download_all_svgs, 
-    download_section_svg, 
-    fetch_section_image_ids
-)
-
-from plotlybrain.map_scores import (
-    candidate_ids,
-    get_svg_attr,
-    load_score,
-    recolor_section_svg,
-    recolor_svg_text,
-    score_to_hex,
-)
 from plotlybrain.scores import (
     find_animal_id,
     load_refatlas_regions,
@@ -43,5 +29,17 @@ from plotlybrain.build_polygons import(
     save_slice_geojson,
     build_geojson_slices,
     build_selected_slices
+)
+
+from plotlybrain.plotly_render import (
+    infer_score_column,
+    load_score,
+    load_geojson,
+    default_color_settings,
+    render_brain_slice,
+    render_brain_slice_from_file,
+    load_manifest,
+    find_geojson_for_slice,
+    value_to_color,
 )
 

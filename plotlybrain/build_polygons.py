@@ -14,7 +14,8 @@ import numpy as np
 import pandas as pd
 import requests
 from skimage import measure
-from shapely.geometry import MultiPolygon, Polygon, mapping
+from rasterio.features import shapes
+from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
 
 from plotlybrain.coord_system import (
@@ -60,8 +61,11 @@ class BuildConfig:
             Minimum polygon/component area in pixels to keep after converting
             a label mask into geometry.
         simplify_px : float, default=0.8
-            Polygon simplification tolerance in pixels. Higher values reduce
-            vertex count and file size.
+            When you convert masks to polygon, you get very detailed boundaries, 
+            they can get jagged (pixel-like). We apply Douglas-Peucker algorithm
+            that removes points that don't change the shape much, keeping only the
+            important corners. This parameter controls polygon simplification 
+            tolerance in pixels. Higher values reduce vertex count and file size.
         storage_mode : {"disk", "memory"}, default="disk"
             Whether to cache downloaded atlas files to disk or load them only
             in RAM.
@@ -145,7 +149,7 @@ def download_file(
             is skipped.
 
     Returns:
-        str
+        str: 
             Path to the downloaded file.
     """
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -168,6 +172,7 @@ def download_bytes(
 
     This function retrieves the entire file and returns the raw bytes
     without writing anything to disk. It is suitable for smaller files resolution
+    
     Args: 
         url : str
             Remote file URL.
@@ -187,6 +192,7 @@ def load_annotation_volume(
 ) -> tuple[np.ndarray, dict]:
     """
     Load the Allen CCF annotation volume.
+
     The annotation volume contains integer structure IDs for each voxel
     in the Allen Common Coordinate Framework (CCF). The file can either
     be cached locally on disk or downloaded directly into memory.
@@ -207,6 +213,7 @@ def load_annotation_volume(
             Annotation volume and NRRD header.
     """
     url = ANNOTATION_URLS[resolution_um]
+
     if storage_mode == "disk":
         if cache_dir is None:
             raise ValueError("cache_dir must be provided when storage_mode='disk'.")
@@ -232,9 +239,11 @@ def load_structure_graph(
 ) -> pd.DataFrame:
     """
     Load the Allen Brain Atlas structure ontology.
+
     The structure graph describes the hierarchical relationships between
     brain regions and includes region IDs, names, acronyms, and parent
-    structures.
+    structures. E.g. Field CA1 is a parent structure of other child-structures, 
+    such as stratum oriens, stratum lacunosum-moleculare, etc.
 
     Args: 
         storage_mode : {"disk", "memory"}, default="disk"
@@ -271,7 +280,10 @@ def load_structure_graph(
         raise ValueError(f"Unknown storage_mode: {storage_mode}")
 
     rows = []
-    def walk(node, parent_id=None):
+    stack = [(node, None) for node in reversed(data["msg"])]
+    while stack:
+        node, parent_id = stack.pop()
+
         rows.append(
             {
                 "id": int(node["id"]),
@@ -283,12 +295,9 @@ def load_structure_graph(
                 "color_hex_triplet": node.get("color_hex_triplet"),
             }
         )
-        for child in node.get("children", []):
-            walk(child, parent_id=int(node["id"]))
-
-    for root in data["msg"]:
-        walk(root, parent_id=None)
-
+        children = node.get("children", [])
+        for child in reversed(children):
+            stack.append((child, int(node["id"])))
     return pd.DataFrame(rows)
 
 def get_slice_view(
@@ -351,60 +360,72 @@ def mask_to_polygon(
     simplify_px: float,
 ) -> MultiPolygon | None:
     """
-    Convert a binary mask into polygon geometry.
-    The mask represents voxels belonging to a single brain structure
-    within a slice. Contours are extracted and converted to Shapely
-    polygons.
+    Convert a binary mask into polygon geometry using raster polygonization.
 
-    Small disconnected fragments can optionally be removed and the
-    resulting polygons simplified to reduce vertex count.
+    This function extracts connected components from a binary mask and converts
+    them into Shapely polygon geometries. It relies on raster-based polygonization
+    (via ``rasterio.features.shapes``).
+    The resulting polygons are optionally simplified to reduce vertex count and
+    filtered by minimum area to remove small artifacts. Multiple components are
+    merged into a single MultiPolygon.
+    We constantly double check if ``geom.is_empty``because for each transformation 
+    the geometry is not guaranteed. 
 
     Args:
         mask : np.ndarray
-            Binary mask identifying a structure within the slice.
+            2D binary mask where foreground pixels (True or 1) represent the
+            region of interest.
         min_area_px : float
             Minimum polygon area (in pixels) required to retain a connected
-            component.
+            component. Smaller regions are discarded.
         simplify_px : float
-            Polygon simplification tolerance in pixels.
+            Polygon simplification tolerance in pixels. Higher values reduce
+            vertex count and file size, but also decrease boundary detail.
 
     Returns:
         MultiPolygon | None
-            Polygon geometry representing the region or None if no valid
-            geometry was found.
+            A MultiPolygon representing the mask geometry, or None if no valid
+            polygon could be generated (e.g., empty mask or all components
+            filtered out).
     """
-    contours = measure.find_contours(mask.astype(float), level=0.5)
+    mask = mask.astype(np.uint8)
+    if mask.max() == 0:
+        return None
+
     polys = []
-
-    for contour in contours:
-        xy = [(float(c[1]), float(c[0])) for c in contour]
-        if len(xy) < 3:
+    for geom_dict, value in shapes(mask, mask=mask > 0):
+        if value != 1: #value == 1 is the foreground
             continue
 
-        poly = Polygon(xy)
-        if not poly.is_valid:
-            poly = poly.buffer(0)
-        if poly.is_empty:
+        geom = shape(geom_dict) #converting to shapely geometry
+        if geom.is_empty: #remove empty geometries
             continue
-        if poly.area < min_area_px:
+        if not geom.is_valid: #fix invalid geometries
+            geom = geom.buffer(0)
+        if geom.is_empty:
             continue
-
         if simplify_px > 0:
-            poly = poly.simplify(simplify_px, preserve_topology=True)
-            if poly.is_empty:
+            geom = geom.simplify(simplify_px, preserve_topology=True)
+            if geom.is_empty:
                 continue
-        polys.append(poly)
+        if isinstance(geom, Polygon):
+            if geom.area >= min_area_px:
+                polys.append(geom)
+        elif isinstance(geom, MultiPolygon):
+            polys.extend([p for p in geom.geoms if p.area >= min_area_px])
+
     if not polys:
         return None
 
-    geom = unary_union(polys)
+    geom = unary_union(polys) #merging overlapping polygons
     if geom.is_empty:
         return None
-
     if isinstance(geom, Polygon):
         return MultiPolygon([geom])
+    if isinstance(geom, MultiPolygon):
+        return geom
 
-    return geom
+    return None
 
 def build_slice_geojson(
     slice_img: np.ndarray,
