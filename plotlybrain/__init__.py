@@ -35,7 +35,7 @@ from plotlybrain.plotly_render import (
     infer_score_column,
     load_score,
     load_geojson,
-    default_color_settings,
+    get_color_scale_params,
     render_brain_slice,
     render_brain_slice_from_file,
     load_manifest,
