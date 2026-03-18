@@ -18,3 +18,10 @@ uv venv
 .venv\Scripts\activate
 uv pip install .
 ```
+
+## License
+
+This project is licensed under the MIT License © 2026  
+Anna Teruel-Sanchis and Konrad Danielewski.
+
+See the [LICENSE](LICENSE) file for details.
