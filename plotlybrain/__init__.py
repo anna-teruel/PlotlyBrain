@@ -28,7 +28,8 @@ from plotlybrain.build_polygons import(
     build_slice_geojson,
     save_slice_geojson,
     build_geojson_slices,
-    build_selected_slices
+    build_selected_slices,
+    clean_polygons_geometry,
 )
 
 from plotlybrain.plotly_render import (
