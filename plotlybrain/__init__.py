@@ -41,5 +41,6 @@ from plotlybrain.plotly_render import (
     load_manifest,
     find_geojson_for_slice,
     value_to_color,
+    export_brain_slice
 )
 
