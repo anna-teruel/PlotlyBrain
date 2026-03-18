@@ -13,8 +13,9 @@ import nrrd
 import numpy as np
 import pandas as pd
 import requests
-from skimage import measure
 from rasterio.features import shapes
+from scipy.ndimage import gaussian_filter
+from skimage import measure
 from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
 
@@ -61,11 +62,16 @@ class BuildConfig:
             Minimum polygon/component area in pixels to keep after converting
             a label mask into geometry.
         simplify_px : float, default=0.8
-            When you convert masks to polygon, you get very detailed boundaries, 
-            they can get jagged (pixel-like). We apply Douglas-Peucker algorithm
-            that removes points that don't change the shape much, keeping only the
-            important corners. This parameter controls polygon simplification 
-            tolerance in pixels. Higher values reduce vertex count and file size.
+            Polygon simplification tolerance in pixels. Higher values reduce
+            vertex count and file size, but also decrease boundary detail.
+        polygon_mode : {"raster", "contour"}, default="contour"
+            Method used to convert binary masks into polygons.
+            - "raster": raster polygonization from pixel boundaries
+            - "contour": smooth mask first, then extract contours
+        smooth_sigma : float, default=1.0
+            Gaussian smoothing sigma applied before contour extraction when
+            polygon_mode="contour". Higher values produce smoother boundaries
+            but can distort small/thin regions.
         storage_mode : {"disk", "memory"}, default="disk"
             Whether to cache downloaded atlas files to disk or load them only
             in RAM.
@@ -79,27 +85,33 @@ class BuildConfig:
     ap_range_mm: tuple[float, float] | None = None
     min_area_px: float = 5.0
     simplify_px: float = 0.8
+    polygon_mode: Literal["raster", "contour"] = "contour"
+    smooth_sigma: float = 1.0
     storage_mode: Literal["disk", "memory"] = "disk"
     overwrite: bool = False
 
+
 def slice_index(
-        cfg: BuildConfig, 
-        n_slices: int,
-    ) -> list[int]:
+    cfg: BuildConfig,
+    n_slices: int,
+) -> list[int]:
     """
     Resolve which slice indices should be built from AP-based configuration.
 
-    Args: 
+    Args:
         cfg : BuildConfig
             Configuration object containing slice selection parameters.
         n_slices : int
             Total number of slices available along the chosen orientation
-            in the annotation volume. 
-    Returns: 
+            in the annotation volume.
+
+    Returns:
         list[int]
-            Sorted liost of unique slice indices within the valid slice range.
-    Raises: 
-        ValueError: if neither `ap_values_mm` nor `ap_range_mm` was provided
+            Sorted list of unique slice indices within the valid slice range.
+
+    Raises:
+        ValueError
+            If neither `ap_values_mm` nor `ap_range_mm` was provided.
     """
     indices: list[int] = []
 
@@ -127,11 +139,12 @@ def slice_index(
 
     return sorted(set(int(i) for i in indices if 0 <= int(i) < n_slices))
 
+
 def download_file(
-         url: str, 
-         out_path: str, 
-         overwrite: bool = False,
-    ) -> str:
+    url: str,
+    out_path: str,
+    overwrite: bool = False,
+) -> str:
     """
     Download a file from a URL and save it to disk.
 
@@ -149,7 +162,7 @@ def download_file(
             is skipped.
 
     Returns:
-        str: 
+        str
             Path to the downloaded file.
     """
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -164,18 +177,20 @@ def download_file(
                     f.write(chunk)
     return out_path
 
+
 def download_bytes(
-        url: str,
-    ) -> bytes:
+    url: str,
+) -> bytes:
     """
     Download a remote file into memory.
 
     This function retrieves the entire file and returns the raw bytes
-    without writing anything to disk. It is suitable for smaller files resolution
-    
-    Args: 
+    without writing anything to disk.
+
+    Args:
         url : str
             Remote file URL.
+
     Returns:
         bytes
             Raw file contents.
@@ -183,6 +198,7 @@ def download_bytes(
     r = requests.get(url, timeout=120)
     r.raise_for_status()
     return r.content
+
 
 def load_annotation_volume(
     resolution_um: int,
@@ -202,13 +218,14 @@ def load_annotation_volume(
             Atlas resolution in microns (10, 25, 50, or 100).
         storage_mode : {"disk", "memory"}, default="disk"
             Loading strategy:
-            * "disk"  – download the file once and cache it locally
+            * "disk"   – download the file once and cache it locally
             * "memory" – download the file into RAM without saving it
         cache_dir : str | None
             Directory used to store downloaded files when using disk mode.
         overwrite : bool, default=False
             If True, overwrite any existing cached files.
-    Returns
+
+    Returns:
         tuple[np.ndarray, dict]
             Annotation volume and NRRD header.
     """
@@ -232,6 +249,7 @@ def load_annotation_volume(
 
     raise ValueError(f"Unknown storage_mode: {storage_mode}")
 
+
 def load_structure_graph(
     storage_mode: Literal["disk", "memory"] = "disk",
     cache_dir: str | None = None,
@@ -242,10 +260,9 @@ def load_structure_graph(
 
     The structure graph describes the hierarchical relationships between
     brain regions and includes region IDs, names, acronyms, and parent
-    structures. E.g. Field CA1 is a parent structure of other child-structures, 
-    such as stratum oriens, stratum lacunosum-moleculare, etc.
+    structures.
 
-    Args: 
+    Args:
         storage_mode : {"disk", "memory"}, default="disk"
             Whether to cache the ontology JSON locally or load it directly
             into memory.
@@ -254,7 +271,7 @@ def load_structure_graph(
         overwrite : bool, default=False
             If True, overwrite existing cached files.
 
-    Returns
+    Returns:
         pandas.DataFrame
             Table containing structure metadata including region ID,
             name, acronym, parent structure ID, and ontology path.
@@ -300,16 +317,14 @@ def load_structure_graph(
             stack.append((child, int(node["id"])))
     return pd.DataFrame(rows)
 
+
 def get_slice_view(
-        volume: np.ndarray, 
-        index: int, 
-        orientation: str,
-    ) -> np.ndarray:
+    volume: np.ndarray,
+    index: int,
+    orientation: str,
+) -> np.ndarray:
     """
     Extract a 2D slice from a 3D annotation volume.
-    The Allen annotation volume stores structure IDs in a 3D grid.
-    This function extracts a single slice along a specified anatomical
-    orientation.
 
     Args:
         volume : np.ndarray
@@ -318,6 +333,7 @@ def get_slice_view(
             Slice index along the chosen orientation.
         orientation : {"coronal", "sagittal", "horizontal"}
             Anatomical slicing direction.
+
     Returns:
         np.ndarray
             2D array representing the selected slice.
@@ -330,31 +346,89 @@ def get_slice_view(
         return volume[:, index, :]
     raise ValueError(f"Unknown orientation: {orientation}")
 
+
 def slice_count(
-        volume: np.ndarray, 
-        orientation: str,
-    ) -> int:
+    volume: np.ndarray,
+    orientation: str,
+) -> int:
     """
     Return the number of slices available for a given orientation.
 
-    Args: 
+    Args:
         volume : np.ndarray
             3D annotation volume.
         orientation : {"coronal", "sagittal", "horizontal"}
             Anatomical slicing direction.
-    Returns:
-        int: number of slices along the specified axis.
 
+    Returns:
+        int
+            Number of slices along the specified axis.
     """
     if orientation == "coronal":
-        return volume.shape[0] #AP
+        return volume.shape[0]
     if orientation == "sagittal":
-        return volume.shape[2] #ML
+        return volume.shape[2]
     if orientation == "horizontal":
-        return volume.shape[1] #DV
+        return volume.shape[1]
     raise ValueError(f"Unknown orientation: {orientation}")
 
-def mask_to_polygon(
+
+def clean_polygons_geometry(
+    polys: list[Polygon],
+    min_area_px: float,
+    simplify_px: float,
+) -> MultiPolygon | None:
+    """
+    Clean, filter, simplify, and merge a list of polygons.
+
+    Args:
+        polys : list[Polygon]
+            Candidate polygons.
+        min_area_px : float
+            Minimum polygon area in pixels.
+        simplify_px : float
+            Simplification tolerance in pixels.
+
+    Returns:
+        MultiPolygon | None
+            Final merged geometry, or None if empty/invalid.
+    """
+    clean_polys = []
+
+    for poly in polys:
+        if poly.is_empty:
+            continue
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if poly.is_empty:
+            continue
+        if simplify_px > 0:
+            poly = poly.simplify(simplify_px, preserve_topology=True) #reduce vertex count (Douglas-Peucker)
+            if poly.is_empty:
+                continue
+
+        if isinstance(poly, Polygon):
+            if poly.area >= min_area_px:
+                clean_polys.append(poly) #remove small noisy components
+        elif isinstance(poly, MultiPolygon):
+            clean_polys.extend([p for p in poly.geoms if p.area >= min_area_px])
+
+    if not clean_polys:
+        return None
+
+    geom = unary_union(clean_polys) #merging all polygons into MultiPolygon
+    if geom.is_empty:
+        return None
+
+    if isinstance(geom, Polygon):
+        return MultiPolygon([geom])
+    if isinstance(geom, MultiPolygon):
+        return geom
+
+    return None
+
+
+def mask_to_polygon_raster(
     mask: np.ndarray,
     min_area_px: float,
     simplify_px: float,
@@ -362,31 +436,17 @@ def mask_to_polygon(
     """
     Convert a binary mask into polygon geometry using raster polygonization.
 
-    This function extracts connected components from a binary mask and converts
-    them into Shapely polygon geometries. It relies on raster-based polygonization
-    (via ``rasterio.features.shapes``).
-    The resulting polygons are optionally simplified to reduce vertex count and
-    filtered by minimum area to remove small artifacts. Multiple components are
-    merged into a single MultiPolygon.
-    We constantly double check if ``geom.is_empty``because for each transformation 
-    the geometry is not guaranteed. 
-
     Args:
         mask : np.ndarray
-            2D binary mask where foreground pixels (True or 1) represent the
-            region of interest.
+            2D binary mask.
         min_area_px : float
-            Minimum polygon area (in pixels) required to retain a connected
-            component. Smaller regions are discarded.
+            Minimum polygon area in pixels.
         simplify_px : float
-            Polygon simplification tolerance in pixels. Higher values reduce
-            vertex count and file size, but also decrease boundary detail.
+            Simplification tolerance in pixels.
 
     Returns:
         MultiPolygon | None
-            A MultiPolygon representing the mask geometry, or None if no valid
-            polygon could be generated (e.g., empty mask or all components
-            filtered out).
+            Polygonized geometry, or None if invalid/empty.
     """
     mask = mask.astype(np.uint8)
     if mask.max() == 0:
@@ -394,38 +454,121 @@ def mask_to_polygon(
 
     polys = []
     for geom_dict, value in shapes(mask, mask=mask > 0):
-        if value != 1: #value == 1 is the foreground
+        if value != 1:
             continue
 
-        geom = shape(geom_dict) #converting to shapely geometry
-        if geom.is_empty: #remove empty geometries
-            continue
-        if not geom.is_valid: #fix invalid geometries
-            geom = geom.buffer(0)
+        geom = shape(geom_dict)
         if geom.is_empty:
             continue
-        if simplify_px > 0:
-            geom = geom.simplify(simplify_px, preserve_topology=True)
-            if geom.is_empty:
-                continue
+
         if isinstance(geom, Polygon):
-            if geom.area >= min_area_px:
-                polys.append(geom)
+            polys.append(geom)
         elif isinstance(geom, MultiPolygon):
-            polys.extend([p for p in geom.geoms if p.area >= min_area_px])
+            polys.extend(list(geom.geoms))
 
-    if not polys:
+    return clean_polygons_geometry(
+        polys=polys,
+        min_area_px=min_area_px,
+        simplify_px=simplify_px,
+    )
+
+
+def mask_to_polygon_contour(
+    mask: np.ndarray,
+    min_area_px: float,
+    simplify_px: float,
+    smooth_sigma: float,
+) -> MultiPolygon | None:
+    """
+    Convert a binary mask into smoother polygon geometry by first smoothing
+    the mask and then extracting contours.
+
+    Args:
+        mask : np.ndarray
+            2D binary mask.
+        min_area_px : float
+            Minimum polygon area in pixels.
+        simplify_px : float
+            Simplification tolerance in pixels.
+        smooth_sigma : float
+            Gaussian smoothing sigma applied before contour extraction.
+
+    Returns:
+        MultiPolygon | None
+            Polygonized geometry, or None if invalid/empty.
+    """
+    mask = mask.astype(float)
+    if mask.max() == 0:
         return None
 
-    geom = unary_union(polys) #merging overlapping polygons
-    if geom.is_empty:
-        return None
-    if isinstance(geom, Polygon):
-        return MultiPolygon([geom])
-    if isinstance(geom, MultiPolygon):
-        return geom
+    smoothed = gaussian_filter(mask, sigma=smooth_sigma)
+    contours = measure.find_contours(smoothed, level=0.5)
 
-    return None
+    polys = []
+    for contour in contours:
+        if contour.shape[0] < 3:
+            continue
+
+        # skimage returns coordinates as (row, col); shapely expects (x, y)
+        coords = [(float(c[1]), float(c[0])) for c in contour]
+
+        poly = Polygon(coords)
+        if poly.is_empty:
+            continue
+
+        polys.append(poly)
+
+    return clean_polygons_geometry(
+        polys=polys,
+        min_area_px=min_area_px,
+        simplify_px=simplify_px,
+    )
+
+
+def mask_to_polygon(
+    mask: np.ndarray,
+    min_area_px: float,
+    simplify_px: float,
+    polygon_mode: Literal["raster", "contour"] = "contour",
+    smooth_sigma: float = 1.0,
+) -> MultiPolygon | None:
+    """
+    Convert a binary mask into polygon geometry using either raster
+    polygonization or smoothed contour extraction.
+
+    Args:
+        mask : np.ndarray
+            2D binary mask.
+        min_area_px : float
+            Minimum polygon area in pixels.
+        simplify_px : float
+            Simplification tolerance in pixels.
+        polygon_mode : {"raster", "contour"}, default="contour"
+            Polygon extraction method.
+        smooth_sigma : float, default=1.0
+            Gaussian smoothing sigma used only for contour mode.
+
+    Returns:
+        MultiPolygon | None
+            Geometry for the mask, or None if invalid/empty.
+    """
+    if polygon_mode == "raster":
+        return mask_to_polygon_raster(
+            mask=mask,
+            min_area_px=min_area_px,
+            simplify_px=simplify_px,
+        )
+
+    if polygon_mode == "contour":
+        return mask_to_polygon_contour(
+            mask=mask,
+            min_area_px=min_area_px,
+            simplify_px=simplify_px,
+            smooth_sigma=smooth_sigma,
+        )
+
+    raise ValueError(f"Unknown polygon_mode: {polygon_mode}")
+
 
 def build_slice_geojson(
     slice_img: np.ndarray,
@@ -435,14 +578,17 @@ def build_slice_geojson(
     resolution_um: int,
     min_area_px: float,
     simplify_px: float,
+    polygon_mode: Literal["raster", "contour"] = "contour",
+    smooth_sigma: float = 1.0,
 ) -> dict:
     """
     Convert an annotation slice into a GeoJSON FeatureCollection.
+
     Each unique structure ID present in the slice is converted into
     polygon geometry and stored as a GeoJSON feature with associated
     metadata.
 
-    Agrs:
+    Args:
         slice_img : np.ndarray
             2D annotation slice containing structure IDs.
         structure_df : pandas.DataFrame
@@ -457,6 +603,10 @@ def build_slice_geojson(
             Minimum polygon area required to retain a connected component.
         simplify_px : float
             Polygon simplification tolerance in pixels.
+        polygon_mode : {"raster", "contour"}, default="contour"
+            Polygon extraction method.
+        smooth_sigma : float, default=1.0
+            Gaussian smoothing sigma used only for contour mode.
 
     Returns:
         dict
@@ -471,10 +621,13 @@ def build_slice_geojson(
     for rid in unique_ids:
         rid = int(rid)
         mask = slice_img == rid
+
         geom = mask_to_polygon(
             mask=mask,
             min_area_px=min_area_px,
             simplify_px=simplify_px,
+            polygon_mode=polygon_mode,
+            smooth_sigma=smooth_sigma,
         )
         if geom is None:
             continue
@@ -507,6 +660,7 @@ def build_slice_geojson(
 
     return {"type": "FeatureCollection", "features": features}
 
+
 def save_slice_geojson(
     gj: dict,
     out_path: str,
@@ -517,11 +671,6 @@ def save_slice_geojson(
     """
     Save a single slice GeoJSON to disk and return its manifest metadata.
 
-    This function writes a GeoJSON FeatureCollection representing one atlas
-    slice and returns a dictionary describing the saved slice. The returned
-    dictionary can later be assembled into a manifest table summarizing all
-    generated slices.
-
     Args:
         gj : dict
             GeoJSON FeatureCollection generated by ``build_slice_geojson``.
@@ -530,19 +679,13 @@ def save_slice_geojson(
         slice_index : int
             Index of the slice within the annotation volume.
         orientation : str
-            Slice orientation used to extract the slice
-            ("coronal", "sagittal", or "horizontal").
-
+            Slice orientation used to extract the slice.
         resolution_um : int
             Atlas voxel resolution in microns.
+
     Returns:
         dict
-            Dictionary describing the saved slice containing:
-            - ``slice_index`` : slice index in the volume
-            - ``ap_mm`` : approximate AP coordinate relative to bregma
-            - ``orientation`` : slice orientation
-            - ``n_features`` : number of polygon regions in the slice
-            - ``geojson_path`` : path to the saved GeoJSON file
+            Dictionary describing the saved slice.
     """
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(gj, f)
@@ -559,6 +702,7 @@ def save_slice_geojson(
         "geojson_path": out_path,
     }
 
+
 def build_geojson_slices(
     volume: np.ndarray,
     structure_df: pd.DataFrame,
@@ -568,42 +712,37 @@ def build_geojson_slices(
     resolution_um: int,
     min_area_px: float,
     simplify_px: float,
+    polygon_mode: Literal["raster", "contour"] = "contour",
+    smooth_sigma: float = 1.0,
 ) -> pd.DataFrame:
     """
     Build and save GeoJSON representations for multiple atlas slices.
-
-    This function iterates over a list of slice indices, converts each slice
-    of the annotation volume into polygon geometries, and writes the result
-    to disk as a GeoJSON file. A manifest table summarizing all generated
-    slices is returned.
 
     Args:
         volume : np.ndarray
             3D Allen CCF annotation volume containing structure IDs.
         structure_df : pandas.DataFrame
-            Flattened Allen structure graph table containing region metadata
-            (IDs, names, acronyms, parent structures).
+            Flattened Allen structure graph table containing region metadata.
         slice_indices : list[int]
             List of slice indices to extract and convert into GeoJSON.
         out_dir : str
             Directory where slice GeoJSON files will be saved.
         orientation : str
-            Slice orientation used to extract slices from the volume
-            ("coronal", "sagittal", or "horizontal").
+            Slice orientation used to extract slices from the volume.
         resolution_um : int
             Atlas voxel resolution in microns.
         min_area_px : float
-            Minimum polygon area (in pixels) required for a region to be
-            included. Small disconnected fragments below this threshold
-            are discarded.
+            Minimum polygon area in pixels required for a region to be included.
         simplify_px : float
-            Polygon simplification tolerance in pixels. Increasing this value
-            reduces vertex count and GeoJSON size.
+            Polygon simplification tolerance in pixels.
+        polygon_mode : {"raster", "contour"}, default="contour"
+            Polygon extraction method.
+        smooth_sigma : float, default=1.0
+            Gaussian smoothing sigma used only for contour mode.
+
     Returns:
         pandas.DataFrame
-            Manifest table containing one row per exported slice with
-            metadata including slice index, AP coordinate, orientation,
-            feature count, and GeoJSON path.
+            Manifest table containing one row per exported slice.
     """
     os.makedirs(out_dir, exist_ok=True)
     manifest_rows = []
@@ -619,6 +758,8 @@ def build_geojson_slices(
             resolution_um=resolution_um,
             min_area_px=min_area_px,
             simplify_px=simplify_px,
+            polygon_mode=polygon_mode,
+            smooth_sigma=smooth_sigma,
         )
 
         out_path = os.path.join(out_dir, f"slice_{i:04d}.geojson")
@@ -638,21 +779,19 @@ def build_geojson_slices(
 
     return pd.DataFrame(manifest_rows)
 
+
 def build_selected_slices(cfg: BuildConfig) -> None:
     """
     Generate GeoJSON atlas slices for selected AP positions.
-    This is the main pipeline function. 
-    The resulting GeoJSON files can be used for visualization with Plotly
-    or other geospatial visualization libraries.
+
+    This is the main pipeline function. The resulting GeoJSON files can be
+    used for visualization with Plotly or other geospatial libraries.
 
     Args:
         cfg : BuildConfig
             Configuration object describing atlas resolution, slice
             selection strategy, output directory, and polygon generation
             parameters.
-    Returns:
-        None
-            GeoJSON files and a slice manifest are written to disk.
     """
     os.makedirs(cfg.out_dir, exist_ok=True)
     geojson_dir = os.path.join(cfg.out_dir, "slices")
@@ -693,6 +832,8 @@ def build_selected_slices(cfg: BuildConfig) -> None:
         resolution_um=cfg.resolution_um,
         min_area_px=cfg.min_area_px,
         simplify_px=cfg.simplify_px,
+        polygon_mode=cfg.polygon_mode,
+        smooth_sigma=cfg.smooth_sigma,
     )
 
     manifest_df.to_csv(
