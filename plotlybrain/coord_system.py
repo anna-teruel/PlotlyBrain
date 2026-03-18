@@ -78,7 +78,7 @@ def ap_mm_to_slice_index(
     """
     cfg = get_ccf_config(resolution_um)
     offset_voxels = round((ap_mm * 1000.0) / cfg.resolution_um)
-    return int(cfg.bregma_ap_index + offset_voxels)
+    return int(cfg.bregma_ap_index - offset_voxels)
 
 def slice_index_to_ap_mm(
         slice_index: int, 
@@ -98,7 +98,7 @@ def slice_index_to_ap_mm(
             Approximate AP coordinate in mm relative to bregma.
     """
     cfg = get_ccf_config(resolution_um)
-    offset_voxels = slice_index - cfg.bregma_ap_index
+    offset_voxels = cfg.bregma_ap_index - slice_index
     return (offset_voxels * cfg.resolution_um) / 1000.0
 
 def ap_range_mm_to_slice_indices(
