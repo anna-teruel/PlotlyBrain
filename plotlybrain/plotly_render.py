@@ -389,12 +389,10 @@ def render_brain_slice(
                         shape=line_shape,
                         smoothing=smoothing,
                     ),
-                    customdata=[[rid, region_name, value]] * len(x),
-                    hovertemplate=(
-                        "Region ID: %{customdata[0]}<br>"
-                        "Region: %{customdata[1]}<br>"
-                        f"{score_name}: %{{customdata[2]}}<extra></extra>"
-                    ),
+                    text=f"Region ID: {rid}<br>Region: {region_name}<br>{score_name}: {value}",
+                    hoverinfo="text",
+                    hoveron="points+fills",
+                    name="",
                     showlegend=False,
                 )
             )
