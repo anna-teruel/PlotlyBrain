@@ -550,8 +550,13 @@ def save_scores(
         return score_df
 
     # one file per group
-    out_dir = os.path.dirname(out_path)
-    base_name = os.path.splitext(os.path.basename(out_path))[0]
+    if os.path.isdir(out_path):
+        out_dir = out_path
+        base_name = score
+    else:
+        out_dir = os.path.dirname(out_path) or "."
+        base_name = os.path.splitext(os.path.basename(out_path))[0]
+    
     results: dict[str, pd.DataFrame] = {}
 
     for group, sub_df in region_by_subject.groupby('group_label', dropna=False):
