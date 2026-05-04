@@ -32,6 +32,10 @@ dependencies = [
     "scipy",
     "h5py",
     "requests",
+    "pynrrd",
+    "rasterio",
+    "shapely",
+    "scikit-image",
 ]
 
     [project.urls]
