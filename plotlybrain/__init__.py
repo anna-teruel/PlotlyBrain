@@ -11,11 +11,11 @@ from plotlybrain.scores import (
 )
 from plotlybrain.coord_system import (
     get_ccf_config,
-    ap_mm_to_slice_index,
-    slice_index_to_ap_mm,
-    ap_range_mm_to_slice_indices
+    coord_mm_to_slice_index,
+    slice_index_to_coordinate_mm,
+    range_mm_to_slice_indices,
 )
-from plotlybrain.build_polygons import(
+from plotlybrain.build_geoJSON import(
     BuildConfig,
     slice_index, 
     download_file,
