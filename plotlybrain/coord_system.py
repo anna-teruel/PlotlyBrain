@@ -16,7 +16,8 @@ class CCFConfig:
 
     Args:
         resolution_um : int
-            Isotropic voxel size in microns.
+            Isotropic voxel size in microns. This is directly related to which annotation volume we load 
+            from the ANNOTATION_URLS in build_polygons.py. Following values are accepted: 10, 25, 50, 100. 
         bregma_ml_index : int
             Approximate mediolateral voxel index of bregma.
         bregma_dv_index : int
@@ -34,20 +35,38 @@ def get_ccf_config(
 ) -> CCFConfig:
     """
     Compute approximate Allen CCF bregma indices for a given voxel resolution.
+
     The physical bregma position is assumed to be approximately: ML = 5400 µm
-    DV = 450 µm, AP = 5700 µm
+    DV = 450 µm, AP = 5700 µm. These are the coordinates of the approximate bregma
+    location inside the Allen CCF reference space, according to the following forum
+    discussion: 
+    https://community.brain-map.org/t/how-to-transform-ccf-x-y-z-coordinates-into-stereotactic-coordinates/1858
+
+    This function converts the physical position in microns into voxel indices for
+    a chosen atlas resolution. 
 
     Args:
         resolution_um : int
-            Atlas voxel size in microns.
+            Atlas voxel size in microns. Loaded from the config class. 
+            Example: 
+                >>> bregma_ml_index = round(5400 / 25)  # 216
+                >>> bregma_dv_index = round(450 / 25)   # 18
+                >>> bregma_ap_index = round(5700 / 25)  # 228
+
+                Meaning: 
+                    In the 25 µm Allen annotation volume,
+                    bregma is approximately at voxel/index:
+
+                    ML = 216
+                    DV = 18
+                    AP = 228
 
     Returns:
-        CCFConfig: Configuration object with resolution and approximate bregma indices.
+        CCFConfig: Configuration object with resolution and bregma indices, based on our conversion system.
     """
-    #bregma position, microns
-    BREGMA_ML_UM = 5400
-    BREGMA_DV_UM = 450
-    BREGMA_AP_UM = 5700
+    BREGMA_ML_UM = 5400 #microns
+    BREGMA_DV_UM = 450 #microns
+    BREGMA_AP_UM = 5700 #microns
 
     return CCFConfig(
         resolution_um=resolution_um,
@@ -56,6 +75,9 @@ def get_ccf_config(
         bregma_ap_index=round(BREGMA_AP_UM / resolution_um),
     )
 
+
+
+
 def ap_mm_to_slice_index(
         ap_mm: float, 
         resolution_um: int = 25,
@@ -63,17 +85,18 @@ def ap_mm_to_slice_index(
     """
     Convert AP coordinate relative to bregma (in mm) to Allen slice index.
 
+    For a given 
+
     Args:
         ap_mm : float
             AP coordinate in mm relative to bregma.
-            Example:
-            -2.0 = 2.0 mm posterior to bregma
-            +1.5 = 1.5 mm anterior to bregma
-        resolution_um : int, default=25
-            Atlas voxel resolution in microns.
+        resolution_um : int, default=25 
+            Atlas voxel resolution in microns. 
+            This is directly related to which annotation volume we load from the 
+            ANNOTATION_URLS in build_polygons.py. Following values are accepted: 10, 25, 50, 100. 
 
     Returns
-        int
+        int:
             Approximate AP slice index in the annotation volume.
     """
     cfg = get_ccf_config(resolution_um)
