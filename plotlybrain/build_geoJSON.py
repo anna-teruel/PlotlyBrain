@@ -18,6 +18,7 @@ from scipy.ndimage import gaussian_filter
 from skimage import measure
 from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
+from tqdm.auto import tqdm
 
 from plotlybrain.coord_system import (
     coord_mm_to_slice_index,
@@ -572,13 +573,11 @@ def build_geojson(
             resolution_um=resolution_um,
         )
 
-
-    
     id2row = structure_df.set_index("id").to_dict(orient="index")
     all_features: list[dict] = []
     n = len(slice_indices)
 
-    for j, slice_index in enumerate(slice_indices, start=1):
+    for slice_index in tqdm(slice_indices, desc="Building GeoJSON slices"):
         slice_img = get_slice_view(volume, slice_index, orientation)
 
         coordinate_mm = slice_index_to_coordinate_mm( 
@@ -587,12 +586,10 @@ def build_geojson(
             resolution_um=resolution_um,
         )#we convert to mm for metadata
 
-        unique_ids = np.unique(slice_img)
-        unique_ids = unique_ids[unique_ids != 0]
+        unique_ids = np.unique(slice_img) #find allen region IDs inside the loaded slice
+        unique_ids = unique_ids[unique_ids != 0] #exclude the background
 
-        slice_count = 0
-
-        for rid in unique_ids:
+        for rid in unique_ids: #for each region id in all regions in the slice
             rid = int(rid)
 
             geom = mask_to_polygon(
@@ -601,7 +598,7 @@ def build_geojson(
                 simplify_px=simplify_px,
                 polygon_mode=polygon_mode,
                 smooth_sigma=smooth_sigma,
-            )
+            ) #create a polygon for every region id in each slice
 
             if geom is None:
                 continue
@@ -626,20 +623,15 @@ def build_geojson(
                 }
             )
 
-            slice_count += 1
-
-        print(
-            f"[{j}/{n}] slice {slice_index:04d} → "
-            f"{slice_count} features "
-            f"(coordinate_mm={coordinate_mm:.3f}, total={len(all_features)})"
-        )
-
     return {
         "type": "FeatureCollection",
         "features": all_features,
     }
  
-def save_geojson(geojson_obj: dict, out_path: str) -> str:
+def save_geojson(
+        geojson_obj: dict, 
+        out_path: str
+    ) -> str:
     """
     Save a GeoJSON FeatureCollection to disk.
 
