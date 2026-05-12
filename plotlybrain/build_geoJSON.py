@@ -150,12 +150,8 @@ def load_annotation_volume(
             f"Choose one of {sorted(ANNOTATION_URLS)}."
         )
 
-    url = ANNOTATION_URLS[resolution_um]
-    raw = download_bytes(url)
-
-    memory_file = io.BytesIO(raw)
-    header = nrrd.read_header(memory_file) #metadata
-    volume = nrrd.read_data(header, memory_file=None)
+    raw = download_bytes(ANNOTATION_URLS[resolution_um])
+    volume, header = nrrd.read(io.BytesIO(raw))
 
     return volume, header
 
