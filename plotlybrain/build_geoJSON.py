@@ -150,11 +150,19 @@ def load_annotation_volume(
             f"Choose one of {sorted(ANNOTATION_URLS)}."
         )
 
-    raw = download_bytes(ANNOTATION_URLS[resolution_um])
-    volume, header = nrrd.read(io.BytesIO(raw))
+    url = ANNOTATION_URLS[resolution_um]
+    raw = download_bytes(url)
+
+    memory_file = io.BytesIO(raw)
+
+    header = nrrd.read_header(memory_file)
+
+    volume = nrrd.read_data(
+        header,
+        memory_file,
+    )
 
     return volume, header
-
 def load_structure_graph() -> pd.DataFrame:
     """
     Load the Allen Brain Atlas structure ontology into memory
