@@ -20,6 +20,7 @@ from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
 
 from plotlybrain.coord_system import (
+    coord_mm_to_slice_index,
     range_mm_to_slice_indices,
     slice_index_to_coordinate_mm,
 )
@@ -100,7 +101,6 @@ class BuildConfig:
     polygon_mode: Literal["raster", "contour"] = "contour"
     smooth_sigma: float = 1.0
     geojson_filename: str = "atlas_slices.geojson"
-
 
 def download_bytes(
     url: str,
@@ -231,8 +231,6 @@ def get_slice_view(
         return volume[:, index, :]
     raise ValueError(f"Unknown orientation: {orientation}")
 
-
-
 def clean_polygons_geometry(
     polys: list[Polygon],
     min_area_px: float,
@@ -298,7 +296,6 @@ def clean_polygons_geometry(
  
     return None
  
- 
 def _mask_to_polygon_raster(
     mask: np.ndarray,
     min_area_px: float,
@@ -309,6 +306,9 @@ def _mask_to_polygon_raster(
  
     Produces axis-aligned polygon edges that closely follow voxel boundaries.
     Fast, but blocky at low resolutions.
+
+    The main goal of this function is to extract polygons directly from pixel
+    boundaries. 
  
     Args:
         mask : np.ndarray
@@ -338,7 +338,6 @@ def _mask_to_polygon_raster(
             polys.extend(geom.geoms)
  
     return clean_polygons_geometry(polys, min_area_px, simplify_px)
- 
  
 def _mask_to_polygon_contour(
     mask: np.ndarray,
@@ -384,7 +383,6 @@ def _mask_to_polygon_contour(
  
     return clean_polygons_geometry(polys, min_area_px, simplify_px)
  
- 
 def mask_to_polygon(
     mask: np.ndarray,
     min_area_px: float,
@@ -422,246 +420,247 @@ def mask_to_polygon(
  
     raise ValueError(f"Unknown polygon_mode: {polygon_mode!r}. Choose 'raster' or 'contour'.")
  
- 
-# ---------------------------------------------------------------------------
-# GeoJSON construction
-# ---------------------------------------------------------------------------
- 
-def build_slice_features(
-    slice_img: np.ndarray,
-    structure_df: pd.DataFrame,
-    slice_index: int,
-    orientation: str,
-    resolution_um: int,
-    min_area_px: float,
-    simplify_px: float,
-    polygon_mode: Literal["raster", "contour"] = "contour",
-    smooth_sigma: float = 1.0,
-) -> list[dict]:
-    """
-    Convert one 2D annotation slice into a list of GeoJSON feature dicts.
- 
-    Each brain region present in the slice becomes one feature. Every feature
-    embeds its slice_index and coordinate_mm so the unified GeoJSON can be
-    filtered by slice without auxiliary files.
- 
-    Args:
-        slice_img : np.ndarray
-            2D array of Allen structure IDs for this slice.
-        structure_df : pd.DataFrame
-            Allen ontology table from load_structure_graph().
-        slice_index : int
-            Index of this slice in the annotation volume.
-        orientation : str
-            Slice orientation.
-        resolution_um : int
-            Atlas voxel resolution in microns.
-        min_area_px : float
-            Minimum polygon area in pixels.
-        simplify_px : float
-            Simplification tolerance in pixels.
-        polygon_mode : {"raster", "contour"}, default="contour"
-            Polygon extraction method.
-        smooth_sigma : float, default=1.0
-            Gaussian sigma for contour mode.
- 
-    Returns:
-        list[dict]
-            GeoJSON feature dicts for every region that produced valid geometry.
-    """
-    unique_ids = np.unique(slice_img)
-    unique_ids = unique_ids[unique_ids != 0]
- 
-    id2row = structure_df.set_index("id").to_dict(orient="index")
-    coordinate_mm = slice_index_to_coordinate_mm(
-        slice_index=slice_index,
-        orientation=orientation,
-        resolution_um=resolution_um,
-    )
- 
-    features: list[dict] = []
-    for rid in unique_ids:
-        rid = int(rid)
-        geom = mask_to_polygon(
-            mask=(slice_img == rid),
-            min_area_px=min_area_px,
-            simplify_px=simplify_px,
-            polygon_mode=polygon_mode,
-            smooth_sigma=smooth_sigma,
-        )
-        if geom is None:
-            continue
- 
-        row = id2row.get(rid, {})
-        features.append(
-            {
-                "type": "Feature",
-                "properties": {
-                    "Region ID": rid,
-                    "Region name": row.get("name"),
-                    "Acronym": row.get("acronym"),
-                    "parent_structure_id": row.get("parent_structure_id"),
-                    "structure_id_path": row.get("structure_id_path"),
-                    "slice_index": int(slice_index),
-                    "coordinate_mm": coordinate_mm,
-                    "orientation": orientation,
-                    "resolution_um": int(resolution_um),
-                },
-                "geometry": mapping(geom),
-            }
-        )
- 
-    return features
- 
- 
-def build_unified_geojson(
+def build_geojson(
     volume: np.ndarray,
     structure_df: pd.DataFrame,
-    slice_indices: list[int],
     orientation: str,
-    resolution_um: int,
-    min_area_px: float,
-    simplify_px: float,
-    polygon_mode: Literal["raster", "contour"] = "contour",
+    resolution_um: int = 25,
+    min_area_px: float = 5.0,
+    simplify_px: float = 0.8,
     smooth_sigma: float = 1.0,
+    polygon_mode: Literal["raster", "contour"] = "contour",
+    slice_indices: list[int] | None = None,
+    coords_mm: list[float] | None = None,
+    start_mm: float | None = None,
+    end_mm: float | None = None,
+    step_mm: float | None = None,
 ) -> dict:
     """
-    Build a single GeoJSON FeatureCollection for one or more atlas slices.
- 
-    Iterates over every requested slice, converts each region mask into
-    polygon geometry, and accumulates all features into one FeatureCollection.
-    Works identically for num_slices=1 and num_slices>1.
- 
+    Build one GeoJSON FeatureCollection from selected Allen atlas slices.
+
+    The function extracts 2D slices from a 3D Allen CCF annotation volume,
+    converts every brain region mask into polygon geometry, and stores all
+    regions from all selected slices inside a single GeoJSON FeatureCollection.
+
+    Each geoJSON feature always means one object on the map. In our context, each 
+    feature corresponds to ONE brain region in ONE slice. For example: Field CA1
+    in coronal slice -2.0mm. 
+    Classical geoJSON features include information about one country, including the 
+    country name, state, country metadata, country boundary, lat/lon polygon, and the 
+    geographic map. Compared to the brain geoJSON we are building, each feature of our
+    geoJSON will describe one brain region, including the region name, the allen ontology
+    metadata, brain region boundary, atlas pixel polygon [x,y], and the atlas slice. 
+
+    An important conceptual difference is that classic geoJSON are representing 2D
+    geographic space [lon/lat], but in our case, our brain geoJSON represents 2D atlas 
+    slice space in pixels [x,y]. But, structurally, they are build in the same 
+    geoJSON standard way.
+
     Args:
         volume : np.ndarray
-            3D Allen CCF annotation volume.
+            3D Allen CCF annotation volume containing integer structure IDs.
         structure_df : pd.DataFrame
-            Allen ontology table.
-        slice_indices : list[int]
-            Slice indices to include (may be length 1).
-        orientation : str
-            Slice orientation.
-        resolution_um : int
+            Allen ontology table returned by load_structure_graph().
+        orientation : {"coronal", "sagittal", "horizontal"}
+            Slice orientation used when extracting 2D views from the volume.
+        resolution_um : int, default=25
             Atlas voxel resolution in microns.
-        min_area_px : float
-            Minimum polygon area in pixels.
-        simplify_px : float
-            Simplification tolerance in pixels.
-        polygon_mode : {"raster", "contour"}, default="contour"
-            Polygon extraction method.
+        min_area_px : float, default=5.0
+            Minimum polygon area in pixels. Smaller polygons are discarded.
+        simplify_px : float, default=0.8
+            Polygon simplification tolerance in pixels. Higher values reduce
+            vertex count and file size but may reduce anatomical detail.
         smooth_sigma : float, default=1.0
-            Gaussian sigma for contour mode.
- 
+            Gaussian smoothing sigma used only when
+            polygon_mode="contour".
+        polygon_mode : {"raster", "contour"}, default="contour"
+            Method used to convert binary masks into polygon geometry.
+                "raster"  : pixel-boundary polygonization.
+                "contour" : Gaussian smoothing followed by contour extraction.
+        slice_indices : list[int] | None, default=None
+            Explicit Allen slice indices to include.
+        coords_mm : list[float] | None, default=None
+            Explicit stereotaxic coordinates in millimetres relative to Bregma (mm)
+        start_mm : float | None, default=None
+            Start coordinate in millimetres for interval selection.
+        end_mm : float | None, default=None
+            End coordinate in millimetres for interval selection.
+        step_mm : float | None, default=None
+            Optional spacing between sampled coordinates in millimetres.
+            If None, all Allen slices in the interval are included.
+
     Returns:
         dict
-            GeoJSON FeatureCollection containing all features from all slices.
+            GeoJSON FeatureCollection containing all extracted brain-region
+            polygons across all selected slices.
+
+    Raises:
+        ValueError
+            If both slice_indices and stereotaxic coordinates are provided.
+
+    Examples:
+        Build from explicit stereotaxic coordinates:
+
+        >>> geojson = build_geojson(
+        ...     volume=volume,
+        ...     structure_df=structure_df,
+        ...     orientation="coronal",
+        ...     resolution_um=25,
+        ...     coords_mm=[2.0, -1.5, -3.0],
+        ...     min_area_px=5,
+        ...     simplify_px=0.8,
+        ... )
+
+        Build from a coordinate interval sampled every 0.5 mm:
+
+        >>> geojson = build_geojson(
+        ...     volume=volume,
+        ...     structure_df=structure_df,
+        ...     orientation="coronal",
+        ...     resolution_um=25,
+        ...     start_mm=-3.0,
+        ...     end_mm=-1.0,
+        ...     step_mm=0.5,
+        ...     min_area_px=5,
+        ...     simplify_px=0.8,
+        ... )
+
+        Build from explicit Allen slice indices:
+
+        >>> geojson = build_geojson(
+        ...     volume=volume,
+        ...     structure_df=structure_df,
+        ...     orientation="coronal",
+        ...     resolution_um=25,
+        ...     slice_indices=[120, 240, 360],
+        ...     min_area_px=5,
+        ...     simplify_px=0.8,
+        ... )  
     """
-    all_features: list[dict] = []
-    n = len(slice_indices)
- 
-    for j, i in enumerate(slice_indices, start=1):
-        features = build_slice_features(
-            slice_img=get_slice_view(volume, i, orientation),
-            structure_df=structure_df,
-            slice_index=i,
+
+    selection_methods = [
+        slice_indices is not None,
+        coords_mm is not None,
+        start_mm is not None or end_mm is not None,
+    ]
+
+    if sum(selection_methods) != 1:
+        raise ValueError(
+            "Provide exactly one slice-selection method: "
+            "slice_indices, coords_mm, or start_mm/end_mm."
+        )
+
+    if slice_indices is not None:
+        pass
+
+    elif coords_mm is not None:
+        slice_indices = [
+            coord_mm_to_slice_index(
+                coord_mm=coord,
+                orientation=orientation,
+                resolution_um=resolution_um,
+            )
+            for coord in coords_mm
+        ]
+
+    else:
+        slice_indices = range_mm_to_slice_indices(
+            start_mm=start_mm,
+            end_mm=end_mm,
+            step_mm=step_mm,
             orientation=orientation,
             resolution_um=resolution_um,
-            min_area_px=min_area_px,
-            simplify_px=simplify_px,
-            polygon_mode=polygon_mode,
-            smooth_sigma=smooth_sigma,
         )
-        all_features.extend(features)
-        print(f"[{j}/{n}] slice {i:04d} → {len(features)} features (total: {len(all_features)})")
- 
-    return {"type": "FeatureCollection", "features": all_features}
- 
+
+
+    
+    id2row = structure_df.set_index("id").to_dict(orient="index")
+    all_features: list[dict] = []
+    n = len(slice_indices)
+
+    for j, slice_index in enumerate(slice_indices, start=1):
+        slice_img = get_slice_view(volume, slice_index, orientation)
+
+        coordinate_mm = slice_index_to_coordinate_mm( 
+            slice_index=slice_index,
+            orientation=orientation,
+            resolution_um=resolution_um,
+        )#we convert to mm for metadata
+
+        unique_ids = np.unique(slice_img)
+        unique_ids = unique_ids[unique_ids != 0]
+
+        slice_count = 0
+
+        for rid in unique_ids:
+            rid = int(rid)
+
+            geom = mask_to_polygon(
+                mask=(slice_img == rid),
+                min_area_px=min_area_px,
+                simplify_px=simplify_px,
+                polygon_mode=polygon_mode,
+                smooth_sigma=smooth_sigma,
+            )
+
+            if geom is None:
+                continue
+
+            row = id2row.get(rid, {})
+
+            all_features.append(
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "Region ID": rid,
+                        "Region name": row.get("name"),
+                        "Acronym": row.get("acronym"),
+                        "parent_structure_id": row.get("parent_structure_id"),
+                        "structure_id_path": row.get("structure_id_path"),
+                        "slice_index": int(slice_index),
+                        "coordinate_mm": coordinate_mm,
+                        "orientation": orientation,
+                        "resolution_um": int(resolution_um),
+                    },
+                    "geometry": mapping(geom),
+                }
+            )
+
+            slice_count += 1
+
+        print(
+            f"[{j}/{n}] slice {slice_index:04d} → "
+            f"{slice_count} features "
+            f"(coordinate_mm={coordinate_mm:.3f}, total={len(all_features)})"
+        )
+
+    return {
+        "type": "FeatureCollection",
+        "features": all_features,
+    }
  
 def save_geojson(geojson_obj: dict, out_path: str) -> str:
     """
     Save a GeoJSON FeatureCollection to disk.
- 
+
     Args:
         geojson_obj : dict
             GeoJSON FeatureCollection to serialise.
         out_path : str
             Destination file path. Parent directories are created if needed.
- 
+
     Returns:
         str
             Absolute path to the written file.
     """
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(geojson_obj, f)
-    return os.path.abspath(out_path)
- 
- 
-# ---------------------------------------------------------------------------
-# Main pipeline entry point
-# ---------------------------------------------------------------------------
- 
-def build_selected_slices(cfg: BuildConfig) -> str:
-    """
-    Build a unified GeoJSON FeatureCollection for the requested atlas slices.
- 
-    Downloads the annotation volume and structure ontology, resolves slice
-    indices from the coordinate configuration, builds polygon geometry for
-    every region in every slice, and writes a single GeoJSON file to disk.
- 
-    The output file can be loaded at any later time and mapped with a score
-    table before rendering with Plotly — no re-processing of the volume needed.
- 
-    Args:
-        cfg : BuildConfig
-            Full build configuration.
- 
-    Returns:
-        str
-            Absolute path to the saved GeoJSON file.
-    """
-    os.makedirs(cfg.out_dir, exist_ok=True)
- 
-    print(f"Loading annotation volume at {cfg.resolution_um} µm resolution...")
-    volume, _ = load_annotation_volume(cfg.resolution_um)
- 
-    print("Loading structure ontology...")
-    structure_df = load_structure_graph()
- 
-    n_slices = slice_count(volume, cfg.orientation)
-    selected_indices = resolve_slice_indices(cfg, n_slices=n_slices)
- 
-    if not selected_indices:
-        raise ValueError(
-            "No valid slice indices resolved from the provided coordinates. "
-            "Check that your coordinate values fall within the atlas bounds."
+        json.dump(
+            geojson_obj,
+            f,
+            indent=2,
+            ensure_ascii=False,
         )
- 
-    print(
-        f"Processing {len(selected_indices)} slice(s) "
-        f"(atlas contains {n_slices} along {cfg.orientation} axis)"
-    )
- 
-    geojson_obj = build_unified_geojson(
-        volume=volume,
-        structure_df=structure_df,
-        slice_indices=selected_indices,
-        orientation=cfg.orientation,
-        resolution_um=cfg.resolution_um,
-        min_area_px=cfg.min_area_px,
-        simplify_px=cfg.simplify_px,
-        polygon_mode=cfg.polygon_mode,
-        smooth_sigma=cfg.smooth_sigma,
-    )
- 
-    out_path = save_geojson(
-        geojson_obj=geojson_obj,
-        out_path=os.path.join(cfg.out_dir, cfg.geojson_filename),
-    )
- 
-    print(
-        f"Saved → {out_path} "
-        f"({len(selected_indices)} slice(s), {len(geojson_obj['features'])} features)"
-    )
-    return out_path
- 
+
+    return os.path.abspath(out_path)
