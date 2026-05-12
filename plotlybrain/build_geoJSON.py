@@ -627,24 +627,119 @@ def build_geojson(
         "type": "FeatureCollection",
         "features": all_features,
     }
- 
-def save_geojson(
-        geojson_obj: dict, 
-        out_path: str
-    ) -> str:
+
+def scale_cartesian_to_lonlat(
+    geojson_obj: dict,
+    lon_range: tuple[float, float] = (-10.0, 10.0),
+    lat_range: tuple[float, float] = (-10.0, 10.0),
+) -> dict:
     """
-    Save a GeoJSON FeatureCollection to disk.
+    Convert GeoJSON polygon coordinates from atlas Cartesian pixel space [x, y]
+    to pseudo-geographic lon/lat coordinates [lon, lat].
+
+    This modifies the input GeoJSON in place and returns it.
+
+    GeoJSON MultiPolygon geometry is structured as: 
+    MultiPolygon
+    └── polygons        (disconnected parts of one region)
+        └── rings       (ring[0] = outer boundary, ring[1:] = holes)
+            └── points  ([x, y] coordinate pairs)
+    That's why we scale the coordinates in a loop. 
+    
+    Bounds are computed globally across all features in a single pass, so
+    the scaling is consistent across the entire slice. The y axis is inverted
+    because atlas pixel coordinates increase downward while latitude increases
+    upward.
 
     Args:
         geojson_obj : dict
-            GeoJSON FeatureCollection to serialise.
-        out_path : str
-            Destination file path. Parent directories are created if needed.
+            GeoJSON FeatureCollection containing coordinates in atlas
+            Cartesian pixel space [x, y].
+        lon_range : tuple[float, float], default=(-10.0, 10.0)
+            Output longitude range used for min-max scaling.
+        lat_range : tuple[float, float], default=(-10.0, 10.0)
+            Output latitude range used for min-max scaling.
 
     Returns:
-        str
-            Absolute path to the written file.
+        dict
+            The modified GeoJSON FeatureCollection with coordinates
+            transformed into pseudo lon/lat space.
+
+    Raises:
+        ValueError
+            If an unsupported geometry type is encountered.
+
+    Examples:
+        Convert atlas coordinates before choropleth rendering:
+
+        >>> geojson = build_geojson(...)
+        >>> geojson = scale_cartesian_to_lonlat(
+        ...     geojson,
+        ...     lon_range=(-5, 5),
+        ...     lat_range=(-5, 5),
+        ... )
+
+        Save the result:
+
+        >>> save_geojson(geojson, "brain_slice_lonlat.geojson")
     """
+    features = geojson_obj["features"]
+    for f in features:
+        if f["geometry"]["type"] != "MultiPolygon":
+            raise ValueError(f"Expected MultiPolygon, got {f['geometry']['type']}")
+
+    all_coords = np.array([
+        [x, y]
+        for f in features
+        for polygon in f["geometry"]["coordinates"]
+        for ring in polygon
+        for x, y in ring
+    ])
+
+    xmin, xmax = all_coords[:, 0].min(), all_coords[:, 0].max()
+    ymin, ymax = all_coords[:, 1].min(), all_coords[:, 1].max()
+    lon_min, lon_max = lon_range
+    lat_min, lat_max = lat_range
+
+    for f in features:
+        geom = f["geometry"]
+        geom["coordinates"] = [
+            [
+                [
+                    [
+                        float(lon_min + (x - xmin) / (xmax - xmin) * (lon_max - lon_min)),
+                        float(lat_max - (y - ymin) / (ymax - ymin) * (lat_max - lat_min)),
+                    ]
+                    for x, y in ring
+                ]
+                for ring in polygon
+            ]
+            for polygon in geom["coordinates"]
+        ]
+
+    return geojson_obj
+ 
+def save_geojson(
+    geojson_obj: dict,
+    out_path: str,
+    convert_to_lonlat: bool = False,
+    lon_range: tuple[float, float] = (-10.0, 10.0),
+    lat_range: tuple[float, float] = (-10.0, 10.0),
+) -> str:
+    """
+    Save a GeoJSON FeatureCollection to disk.
+
+    Optionally converts atlas Cartesian coordinates [x, y] to pseudo
+    lon/lat coordinates [lon, lat] before saving.
+    """
+
+    if convert_to_lonlat:
+        geojson_obj = scale_cartesian_to_lonlat(
+            geojson_obj,
+            lon_range=lon_range,
+            lat_range=lat_range,
+        )
+
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
 
     with open(out_path, "w", encoding="utf-8") as f:

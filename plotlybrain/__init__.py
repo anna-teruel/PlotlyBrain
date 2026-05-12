@@ -15,21 +15,19 @@ from plotlybrain.coord_system import (
     slice_index_to_coordinate_mm,
     range_mm_to_slice_indices,
 )
-from plotlybrain.build_geoJSON import(
+from plotlybrain.build_geoJSON import (
+    ANNOTATION_URLS,
+    STRUCTURE_GRAPH_URL,
     BuildConfig,
-    slice_index, 
-    download_file,
     download_bytes,
     load_annotation_volume,
     load_structure_graph,
     get_slice_view,
-    slice_count,
-    mask_to_polygon,
-    build_slice_geojson,
-    save_slice_geojson,
-    build_geojson_slices,
-    build_selected_slices,
     clean_polygons_geometry,
+    mask_to_polygon,
+    build_geojson,
+    scale_cartesian_to_lonlat,
+    save_geojson,
 )
 
 from plotlybrain.plotly_render import (
