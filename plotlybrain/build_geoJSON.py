@@ -634,7 +634,7 @@ def build_geojson(
 
 def scale_cartesian_to_lonlat(
     geojson_obj: dict,
-    lon_range: tuple[float, float] = (-10.0, 10.0),
+    lon_range: tuple[float, float] = (-15.0, 15.0),
     lat_range: tuple[float, float] = (-10.0, 10.0),
 ) -> dict:
     """
@@ -727,7 +727,7 @@ def save_geojson(
     geojson_obj: dict,
     out_path: str,
     convert_to_lonlat: bool = False,
-    lon_range: tuple[float, float] = (-10.0, 10.0),
+    lon_range: tuple[float, float] = (-15.0, 15.0),
     lat_range: tuple[float, float] = (-10.0, 10.0),
 ) -> str:
     """
