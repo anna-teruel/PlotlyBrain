@@ -364,8 +364,7 @@ def density_score(
 def save_scores(
     data_dir: str,
     out_path: str,
-    score: ScoreName = "rel_abundance",
-    score_fn: ScoreFn | None = None,
+    score: list[ScoreName] | None = None,
     sep: str = ";",
     col_id: str = "Region ID",
     col_name: str = "Region name",
@@ -397,42 +396,83 @@ def save_scores(
         - one reference group (`reference_mode="group"`)
 
     Args:
-        data_dir: Folder containing QUINT *_RefAtlasRegions.csv exports.
-        out_path: Output CSV path. If `group_col` is provided, this is treated
+        data_dir : str
+            Folder containing QUINT *_RefAtlasRegions.csv exports.
+        out_path : str
+            Output CSV path. If ``group_col`` is provided, this is treated
             as an output prefix and one file per group is written.
-        score: Which score to compute:
-            - "rel_abundance": z-scored regional abundance
-            - "frequency": fraction of animals with objects > 0
-            - "density": objects per unit area
-        score_fn: Optional custom scoring function. If provided, it overrides
-            `score` and must accept the per-animal region table.
-        sep: CSV separator used by QUINT exports.
-        col_id: Column name for the Allen region ID.
-        col_name: Column name for the region name.
-        col_count: Column name for the object count.
-        col_area: Column name for the region area in the raw QUINT table.
-        exclude_region_ids: Region IDs to exclude (e.g. background/root).
-        metadata_path: Optional metadata CSV containing at least one row per animal.
-        metadata_sep: Separator used in the metadata file.
-        animal_col: Column used to merge metadata with QUINT data.
-        group_col: Metadata column(s) used to define groups. Can be a single
-            column name or a list of column names.
-        group_name_sep: how you want to separate different group categories. Default "_"
-        rel_abundance_method: "within" or "reference" for relative abundance.
-        reference_mode: How to compute shared reference stats when
-            `rel_abundance_method="reference"`:
-            - "pooled": use all animals
-            - "group": use only `reference_group`
-        reference_group: Group name to use when `reference_mode="group"`.
+        scores : list[{"rel_abundance", "frequency", "density"}] | None, default=None
+            Scores to compute and save. If None, all built-in scores are computed:
+            ["rel_abundance", "frequency", "density"].
+        sep : str, default=";"
+            CSV separator used by QUINT exports.
+        col_id : str, default="Region ID"
+            Column name for the Allen region ID.
+        col_name : str, default="Region name"
+            Column name for the region name.
+        col_count : str, default="Object count"
+            Column name for the object count.
+        col_area : str, default="Region area"
+            Column name for the region area in the raw QUINT table.
+        exclude_region_ids : set[int], default={0, 997}
+            Region IDs to exclude, usually background/root.
+        metadata_path : str | None, default=None
+            Optional metadata CSV containing at least one row per animal.
+        metadata_sep : str | None, default=None
+            Separator used in the metadata file.
+        animal_col : str, default="animal"
+            Column used to merge metadata with QUINT data.
+        group_col : str | list[str] | None, default=None
+            Metadata column(s) used to define groups.
+        group_name_sep : str, default="_"
+            Separator used when combining multiple group columns.
+        rel_abundance_method : {"within", "reference"}, default="within"
+            Normalization mode for relative abundance.
+        reference_mode : {"pooled", "group"}, default="pooled"
+            How to compute shared reference statistics when
+            ``rel_abundance_method="reference"``.
+        reference_group : str | list[str] | None, default=None
+            Group name used as reference when ``reference_mode="group"``.
 
     Returns:
-        If `group_col` is None:
-            A single score DataFrame.
-        If `group_col` is provided:
-            A dictionary mapping each group name to its score DataFrame.
+        pd.DataFrame | dict[str, pd.DataFrame]
+            If ``group_col`` is None, returns the saved score table.
+            If ``group_col`` is provided, returns a dictionary mapping group
+            names to saved score tables.
+     Examples:
+        Compute and save all scores:
+        >>> score_df = save_scores(
+        ...     data_dir="output",
+        ...     out_path="scores_all.csv",
+        ... )
+
+        Compute and save only consistency
+        >>> score_df = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="scores_consistency.csv",
+        ...     scores=["consistency
+        ... )
+
+        Compute and save relative abundance and density:
+        >>> score_df = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="scores_rel_density.csv",
+        ...     scores=["rel_abundance", "density"],
+        ... )
 
     Raises:
-        ValueError: If `score` is invalid or reference settings are inconsistent.
+        ValueError
+            If one or more score names are invalid.
+        ValueError
+            If reference settings are inconsistent, for example when
+            ``reference_mode="group"`` but no ``reference_group`` is provided.
+        ValueError
+            If no rows are found for the specified ``reference_group``.
+        KeyError
+            If ``animal_col`` is not found in the metadata file.
+        KeyError
+            If one or more grouping columns specified in ``group_col`` are not
+            found after loading and merging metadata.
     """
     df = load_refatlas_regions(
         data_dir=data_dir,
@@ -443,16 +483,14 @@ def save_scores(
         col_area=col_area,
         exclude_region_ids=exclude_region_ids,
     )
-    
     region_by_subject = compute_animal_region_counts(
-         df,
-         col_id = col_id, 
-         col_name = col_name, 
-         col_count = col_count, 
-         col_area = col_area,
-	)
-    
-    #adding group information from metadata
+        df,
+        col_id=col_id,
+        col_name=col_name,
+        col_count=col_count,
+        col_area=col_area,
+    )
+
     if metadata_path is not None:
         meta = pd.read_csv(metadata_path, sep=metadata_sep, engine="python")
         meta.columns = meta.columns.str.strip()
@@ -463,13 +501,16 @@ def save_scores(
                 f"Available columns: {list(meta.columns)}"
             )
 
-        region_by_subject = region_by_subject.merge(meta, on=animal_col, how="left")
-    
-	#combining group labels into one category (e.g sex + genotype --> WT_F)
+        region_by_subject = region_by_subject.merge(
+            meta,
+            on=animal_col,
+            how="left",
+        )
+
     if isinstance(group_col, str):
         group_cols = [group_col]
     else:
-         group_cols = group_col
+        group_cols = group_col
 
     if group_cols is not None:
         missing = [c for c in group_cols if c not in region_by_subject.columns]
@@ -484,11 +525,14 @@ def save_scores(
             .astype(str)
             .agg(group_name_sep.join, axis=1)
         )
-          
-	# for rel_abundance score:
+
     reference_stats = None
-    if score == "rel_abundance" and rel_abundance_method == "reference":
-        if group_col is None or reference_mode == "pooled":
+    needs_reference = (
+        scores is None or "rel_abundance" in scores
+    ) and rel_abundance_method == "reference"
+
+    if needs_reference:
+        if group_cols is None or reference_mode == "pooled":
             ref_df = region_by_subject
 
         elif reference_mode == "group":
@@ -496,12 +540,19 @@ def save_scores(
                 raise ValueError(
                     "reference_group must be provided when reference_mode='group'."
                 )
-            ref_df = region_by_subject[region_by_subject[group_col] == reference_group]
+
+            if isinstance(reference_group, list):
+                reference_group = group_name_sep.join(map(str, reference_group))
+
+            ref_df = region_by_subject[
+                region_by_subject["group_label"] == reference_group
+            ]
 
             if ref_df.empty:
                 raise ValueError(
                     f"No rows found for reference_group='{reference_group}'."
                 )
+
         else:
             raise ValueError("reference_mode must be one of {'pooled', 'group'}.")
 
@@ -511,59 +562,81 @@ def save_scores(
             col_name=col_name,
         )
 
-    # build scorer
-    if score_fn is None:
-        scorers: dict[str, ScoreFn] = {
-            "rel_abundance": lambda d: relative_abundance(
-                d,
-                col_id=col_id,
-                col_name=col_name,
-                method=rel_abundance_method,
-                reference_stats=reference_stats,
-            ),
-            "frequency": lambda d: consistency_score(
-                d,
-                col_id=col_id,
-                col_name=col_name,
-            ),
-            "density": lambda d: density_score(
-                d,
-                col_id=col_id,
-                col_name=col_name,
-                area_col="region_area",
-            ),
-        }
+    scorers: dict[str, ScoreFn] = {
+        "rel_abundance": lambda d: relative_abundance(
+            d,
+            col_id=col_id,
+            col_name=col_name,
+            method=rel_abundance_method,
+            reference_stats=reference_stats,
+        ),
+        "frequency": lambda d: consistency_score(
+            d,
+            col_id=col_id,
+            col_name=col_name,
+        ),
+        "density": lambda d: density_score(
+            d,
+            col_id=col_id,
+            col_name=col_name,
+            area_col="region_area",
+        ),
+    }
 
-        try:
-            score_fn = scorers[score]
-        except KeyError as e:
-            raise ValueError(
-                f"Unknown score='{score}'. Use one of {list(scorers.keys())}."
-            ) from e
+    if scores is None:
+        scores = list(scorers.keys())
 
-	# save df
+    invalid = [s for s in scores if s not in scorers]
+    if invalid:
+        raise ValueError(
+            f"Unknown score(s): {invalid}. "
+            f"Available scores: {list(scorers.keys())}"
+        )
+
+    def compute_score_table(data: pd.DataFrame) -> pd.DataFrame:
+        result_df = None
+
+        for score_name in scores:
+            score_df = scorers[score_name](data)
+
+            if result_df is None:
+                result_df = score_df
+                continue
+
+            cols_to_add = [
+                c for c in score_df.columns
+                if c not in result_df.columns
+            ]
+
+            result_df = result_df.merge(
+                score_df[[col_id] + cols_to_add],
+                on=col_id,
+                how="outer",
+            )
+
+        return result_df
+
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
-    if group_col is None:
-        score_df = score_fn(region_by_subject)
+    if group_cols is None:
+        score_df = compute_score_table(region_by_subject)
         score_df.to_csv(out_path, index=False)
         return score_df
 
-    # one file per group
     if os.path.isdir(out_path):
         out_dir = out_path
-        base_name = score
+        base_name = "scores"
     else:
         out_dir = os.path.dirname(out_path) or "."
         base_name = os.path.splitext(os.path.basename(out_path))[0]
-    
+
     results: dict[str, pd.DataFrame] = {}
 
-    for group, sub_df in region_by_subject.groupby('group_label', dropna=False):
+    for group, sub_df in region_by_subject.groupby("group_label", dropna=False):
         group_str = str(group)
-        group_score_df = score_fn(sub_df)
+        group_score_df = compute_score_table(sub_df)
 
-        group_out = os.path.join(out_dir, f"{score}_{group_str}.csv")
+        group_out = os.path.join(out_dir, f"{base_name}_{group_str}.csv")
         group_score_df.to_csv(group_out, index=False)
         results[group_str] = group_score_df
 
