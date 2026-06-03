@@ -613,6 +613,7 @@ def build_geojson(
                 {
                     "type": "Feature",
                     "properties": {
+                        "feature_id": f"{slice_index}_{rid}",
                         "Region ID": rid,
                         "Region name": row.get("name"),
                         "Acronym": row.get("acronym"),
