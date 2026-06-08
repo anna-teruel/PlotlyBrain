@@ -124,7 +124,6 @@ class MetadataConfig:
                 f"Available columns: {list(df.columns)}"
             )
 
-        df = df.copy()
         df["group_label"] = (
             df[group_cols]
             .astype(str)
