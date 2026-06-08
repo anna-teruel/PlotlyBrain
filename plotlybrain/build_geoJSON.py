@@ -154,7 +154,6 @@ def load_annotation_volume(
     raw = download_bytes(url)
 
     memory_file = io.BytesIO(raw)
-
     header = nrrd.read_header(memory_file)
 
     volume = nrrd.read_data(
@@ -162,7 +161,7 @@ def load_annotation_volume(
         memory_file,
     )
 
-    return volume, header
+    return volume
 
 def load_structure_graph() -> pd.DataFrame:
     """
