@@ -163,6 +163,7 @@ def load_annotation_volume(
     )
 
     return volume, header
+
 def load_structure_graph() -> pd.DataFrame:
     """
     Load the Allen Brain Atlas structure ontology into memory
@@ -734,8 +735,38 @@ def save_geojson(
     """
     Save a GeoJSON FeatureCollection to disk.
 
-    Optionally converts atlas Cartesian coordinates [x, y] to pseudo
-    lon/lat coordinates [lon, lat] before saving.
+    Args:
+        geojson_obj : dict
+            GeoJSON FeatureCollection to save.
+        out_path : str
+            Output GeoJSON file path.
+        convert_to_lonlat : bool, default=False
+            If True, convert Cartesian atlas coordinates to pseudo lon/lat
+            coordinates before saving.
+        lon_range : tuple[float, float], default=(-15.0, 15.0)
+            Output longitude range used during coordinate scaling.
+        lat_range : tuple[float, float], default=(-10.0, 10.0)
+            Output latitude range used during coordinate scaling.
+
+    Returns:
+        str
+            Absolute path to the saved GeoJSON file.
+
+    Examples:
+        Save a GeoJSON file without coordinate conversion:
+
+        >>> save_geojson(
+        ...     geojson_obj,
+        ...     "atlas_slice.geojson",
+        ... )
+
+        Save a GeoJSON file using pseudo lon/lat coordinates:
+
+        >>> save_geojson(
+        ...     geojson_obj,
+        ...     "atlas_slice_lonlat.geojson",
+        ...     convert_to_lonlat=True,
+        ... )
     """
 
     if convert_to_lonlat:
