@@ -17,8 +17,8 @@ class MetadataConfig:
             Path to a metadata CSV file. For now, only csv is supported.
         sep : str | None, default=None
             Metadata file separator passed to pandas.read_csv().
-        animal_col : str, default="animal"
-            Column used to identify animals and merge metadata with
+        animal_col : str, default="id" 
+            Column used to identify individuals and merge metadata with
             QUINT-derived data.
         group_col : str | list[str] | None, default=None
             Metadata column(s) used to define experimental groups.
@@ -26,10 +26,9 @@ class MetadataConfig:
             Separator used when combining multiple grouping columns into
             a single group label.
     """
-
     metadata_path: str | None = None
     sep: str | None = None
-    animal_col: str = "animal"
+    animal_col: str = "id"
     group_col: str | list[str] | None = None
     group_name_sep: str = "_"
 
@@ -52,10 +51,7 @@ class MetadataConfig:
             self.metadata_path,
             sep=self.sep,
         )
-
-        # Remove leading/trailing whitespace from column names.
-        meta.columns = meta.columns.str.strip()
-
+        meta.columns = meta.columns.str.strip() #remove whitespaces in columns
         if self.animal_col not in meta.columns:
             raise KeyError(
                 f"Column '{self.animal_col}' not found in metadata file. "
@@ -124,12 +120,11 @@ class MetadataConfig:
 
         if missing:
             raise KeyError(
-                f"Grouping column(s) not found after loading/merging data: {missing}. "
+                f"Grouping column(s) not found after merging data: {missing}. "
                 f"Available columns: {list(df.columns)}"
             )
 
         df = df.copy()
-
         df["group_label"] = (
             df[group_cols]
             .astype(str)

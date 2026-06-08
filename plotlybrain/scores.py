@@ -10,6 +10,8 @@ from typing import Callable, Literal
 import pandas as pd
 from scipy.stats import zscore
 
+from plotlybrain.metadata import MetadataConfig
+
 ScoreName = Literal["rel_abundance", "frequency", "density"]
 RelAbundanceMethod = Literal["within", "reference"]
 ReferenceMode = Literal["pooled", "group"]
@@ -361,10 +363,123 @@ def density_score(
 
     return region_density
 
+def score_table(
+    df: pd.DataFrame,
+    scores: list[ScoreName],
+    col_id: str = "Region ID",
+    col_name: str = "Region name",
+    rel_abundance_method: RelAbundanceMethod = "within",
+    reference_stats: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    """
+    Compute selected region-level scores and merge them into one table.
+    
+    Args:
+        region_by_subject : pd.DataFrame
+            Region-level table produced by compute_animal_region_counts().
+            Each row represents one region in one animal.
+        scores : list[{"rel_abundance", "frequency", "density"}]
+            Scores to compute and merge.
+        col_id : str, default="Region ID"
+            Column name containing Allen structure IDs.
+        col_name : str, default="Region name"
+            Column name containing region names.
+        rel_abundance_method : {"within", "reference"}, default="within"
+            Normalization method used when computing relative abundance.
+        reference_stats : dict[str, float] | None, default=None
+            Reference statistics used when
+            ``rel_abundance_method="reference"``.
+
+    Returns:
+        pd.DataFrame
+            Table containing one row per region and one column for each
+            requested score.
+
+    Examples:
+        Compute all available scores:
+
+        >>> score_df = compute_score_table(
+        ...     region_by_subject,
+        ...     scores=[
+        ...         "rel_abundance",
+        ...         "frequency",
+        ...         "density",
+        ...     ],
+        ... )
+
+        Compute only frequency:
+
+        >>> score_df = compute_score_table(
+        ...     region_by_subject,
+        ...     scores=["frequency"],
+        ... )
+
+        Compute relative abundance using reference statistics:
+
+        >>> score_df = compute_score_table(
+        ...     region_by_subject,
+        ...     scores=["rel_abundance"],
+        ...     rel_abundance_method="reference",
+        ...     reference_stats=reference_stats,
+        ... )
+
+    Raises:
+        ValueError
+            If one or more score names are invalid.
+    """
+    scorers: dict[str, ScoreFn] = { #dictionary of scorer functions
+        "rel_abundance": lambda d: relative_abundance(
+            d,
+            col_id=col_id,
+            col_name=col_name,
+            method=rel_abundance_method,
+            reference_stats=reference_stats,
+        ),
+        "frequency": lambda d: consistency_score(
+            d,
+            col_id=col_id,
+            col_name=col_name,
+        ),
+        "density": lambda d: density_score(
+            d,
+            col_id=col_id,
+            col_name=col_name,
+            area_col="region_area",
+        ),
+    }
+
+    invalid = [s for s in scores if s not in scorers]
+    if invalid:
+        raise ValueError(
+            f"Unknown score(s): {invalid}. "
+            f"Available scores: {list(scorers.keys())}"
+        )
+
+    result_df = None
+    for score_name in scores:
+        score_df = scorers[score_name](df)
+
+        if result_df is None: #this is for the first iteration, after will not be empty
+            result_df = score_df
+            continue
+
+        cols_to_add = [
+            c for c in score_df.columns
+            if c not in result_df.columns
+        ]
+
+        result_df = result_df.merge(
+            score_df[[col_id] + cols_to_add],
+            on=col_id,
+            how="outer", #keep everythin
+        )
+
+    return result_df
+
 def save_scores(
     data_dir: str,
     out_path: str,
-    score: list[ScoreName] | None = None,
+    scores: list[ScoreName] | None = None,
     sep: str = ";",
     col_id: str = "Region ID",
     col_name: str = "Region name",
@@ -382,97 +497,104 @@ def save_scores(
 ) -> pd.DataFrame | dict[str, pd.DataFrame]:
     """
     Compute region-level score tables from QUINT exports and save them to disk.
-
-    This function can operate on the full dataset or, if metadata and a
-    grouping column are provided, compute one score table per group.
-
-    For `score="rel_abundance"`, two normalization modes are supported:
-        - "within": z-score region totals within each dataset/group
-        - "reference": z-score region totals using shared reference stats
-
-    If grouping is used together with `rel_abundance_method="reference"`,
-    reference statistics can be computed from:
-        - all animals pooled together (`reference_mode="pooled"`)
-        - one reference group (`reference_mode="group"`)
+    This function loads QUINT ``*_RefAtlasRegions.csv`` files, aggregates
+    counts at the animal level, optionally merges metadata, computes one or
+    more region-level scores, and saves the resulting score table(s) to disk.
+    By default, all built-in scores are computed and saved in a single CSV.
 
     Args:
         data_dir : str
             Folder containing QUINT *_RefAtlasRegions.csv exports.
         out_path : str
-            Output CSV path. If ``group_col`` is provided, this is treated
-            as an output prefix and one file per group is written.
-        scores : list[{"rel_abundance", "frequency", "density"}] | None, default=None
-            Scores to compute and save. If None, all built-in scores are computed:
-            ["rel_abundance", "frequency", "density"].
+            Output CSV path. If grouping is used, one file per group is
+            written.
+        scores : list[{"rel_abundance", "frequency", "density"}] | None,
+            default=None
+            Scores to compute and save. If None, all built-in scores are
+            computed.
         sep : str, default=";"
             CSV separator used by QUINT exports.
         col_id : str, default="Region ID"
-            Column name for the Allen region ID.
+            Column name containing Allen structure IDs.
         col_name : str, default="Region name"
-            Column name for the region name.
+            Column name containing region names.
         col_count : str, default="Object count"
-            Column name for the object count.
+            Column name containing object counts.
         col_area : str, default="Region area"
-            Column name for the region area in the raw QUINT table.
+            Column name containing region area.
         exclude_region_ids : set[int], default={0, 997}
-            Region IDs to exclude, usually background/root.
+            Region IDs to exclude, usually background and root.
         metadata_path : str | None, default=None
-            Optional metadata CSV containing at least one row per animal.
+            Optional metadata CSV.
         metadata_sep : str | None, default=None
-            Separator used in the metadata file.
+            Metadata file separator.
         animal_col : str, default="animal"
-            Column used to merge metadata with QUINT data.
+            Animal identifier column used for metadata merging.
         group_col : str | list[str] | None, default=None
             Metadata column(s) used to define groups.
         group_name_sep : str, default="_"
-            Separator used when combining multiple group columns.
+            Separator used when combining multiple grouping columns.
         rel_abundance_method : {"within", "reference"}, default="within"
-            Normalization mode for relative abundance.
+            Normalization method used when computing relative abundance.
         reference_mode : {"pooled", "group"}, default="pooled"
-            How to compute shared reference statistics when
+            How reference statistics are computed when using
             ``rel_abundance_method="reference"``.
         reference_group : str | list[str] | None, default=None
-            Group name used as reference when ``reference_mode="group"``.
+            Reference group used when ``reference_mode="group"``.
 
     Returns:
         pd.DataFrame | dict[str, pd.DataFrame]
-            If ``group_col`` is None, returns the saved score table.
-            If ``group_col`` is provided, returns a dictionary mapping group
-            names to saved score tables.
-     Examples:
-        Compute and save all scores:
-        >>> score_df = save_scores(
-        ...     data_dir="output",
-        ...     out_path="scores_all.csv",
-        ... )
-
-        Compute and save only consistency
-        >>> score_df = save_scores(
-        ...     data_dir="quint_exports",
-        ...     out_path="scores_consistency.csv",
-        ...     scores=["consistency
-        ... )
-
-        Compute and save relative abundance and density:
-        >>> score_df = save_scores(
-        ...     data_dir="quint_exports",
-        ...     out_path="scores_rel_density.csv",
-        ...     scores=["rel_abundance", "density"],
-        ... )
+            If no grouping is used, returns a single score table.
 
     Raises:
         ValueError
             If one or more score names are invalid.
         ValueError
-            If reference settings are inconsistent, for example when
-            ``reference_mode="group"`` but no ``reference_group`` is provided.
+            If reference settings are inconsistent.
         ValueError
-            If no rows are found for the specified ``reference_group``.
+            If no rows are found for the specified reference group.
         KeyError
-            If ``animal_col`` is not found in the metadata file.
-        KeyError
-            If one or more grouping columns specified in ``group_col`` are not
-            found after loading and merging metadata.
+            If required metadata or grouping columns are missing.        
+
+    Examples:
+        
+        Save all available scores:
+        >>> score_df = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="scores.csv",
+        ... )
+
+        Save only frequency:
+        >>> score_df = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="frequency.csv",
+        ...     scores=["frequency"],
+        ... )
+
+        Save relative abundance and density:
+        >>> score_df = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="scores.csv",
+        ...     scores=["rel_abundance", "density"],
+        ... )
+
+        One score table per experimental group:
+        >>> results = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="group_scores",
+        ...     metadata_path="metadata.csv",
+        ...     group_col="genotype",
+        ... )
+
+        Save relative abundance using a reference group:
+        >>> score_df = save_scores(
+        ...     data_dir="quint_exports",
+        ...     out_path="scores.csv",
+        ...     scores=["rel_abundance"],
+        ...     rel_abundance_method="reference",
+        ...     reference_mode="group",
+        ...     reference_group="WT",
+        ... )
     """
     df = load_refatlas_regions(
         data_dir=data_dir,
@@ -483,6 +605,7 @@ def save_scores(
         col_area=col_area,
         exclude_region_ids=exclude_region_ids,
     )
+
     region_by_subject = compute_animal_region_counts(
         df,
         col_id=col_id,
@@ -491,54 +614,49 @@ def save_scores(
         col_area=col_area,
     )
 
-    if metadata_path is not None:
-        meta = pd.read_csv(metadata_path, sep=metadata_sep, engine="python")
-        meta.columns = meta.columns.str.strip()
+    metadata = MetadataConfig(
+        metadata_path=metadata_path,
+        sep=metadata_sep,
+        animal_col=animal_col,
+        group_col=group_col,
+        group_name_sep=group_name_sep,
+    )
 
-        if animal_col not in meta.columns:
-            raise KeyError(
-                f"Column '{animal_col}' not found in metadata file. "
-                f"Available columns: {list(meta.columns)}"
-            )
+    region_by_subject, group_cols = metadata.merge_and_add_groups(
+        region_by_subject
+    )
 
-        region_by_subject = region_by_subject.merge(
-            meta,
-            on=animal_col,
-            how="left",
-        )
+    list_scores: list[ScoreName] = [
+        "rel_abundance",
+        "frequency",
+        "density",
+    ]
 
-    if isinstance(group_col, str):
-        group_cols = [group_col]
-    else:
-        group_cols = group_col
+    if scores is None:
+        scores = list_scores
 
-    if group_cols is not None:
-        missing = [c for c in group_cols if c not in region_by_subject.columns]
-        if missing:
-            raise KeyError(
-                f"Grouping column(s) not found after loading/merging data: {missing}. "
-                f"Available columns: {list(region_by_subject.columns)}"
-            )
-
-        region_by_subject["group_label"] = (
-            region_by_subject[group_cols]
-            .astype(str)
-            .agg(group_name_sep.join, axis=1)
+    invalid = [s for s in scores if s not in list_scores]
+    if invalid:
+        raise ValueError(
+            f"Unknown score(s): {invalid}. "
+            f"Available scores: {list_scores}"
         )
 
     reference_stats = None
-    needs_reference = (
-        scores is None or "rel_abundance" in scores
-    ) and rel_abundance_method == "reference"
+    use_reference_stats = (
+        "rel_abundance" in scores
+        and rel_abundance_method == "reference"
+    )
 
-    if needs_reference:
+    if use_reference_stats:
         if group_cols is None or reference_mode == "pooled":
             ref_df = region_by_subject
 
         elif reference_mode == "group":
             if reference_group is None:
                 raise ValueError(
-                    "reference_group must be provided when reference_mode='group'."
+                    "reference_group must be provided when "
+                    "reference_mode='group'."
                 )
 
             if isinstance(reference_group, list):
@@ -562,64 +680,16 @@ def save_scores(
             col_name=col_name,
         )
 
-    scorers: dict[str, ScoreFn] = {
-        "rel_abundance": lambda d: relative_abundance(
-            d,
-            col_id=col_id,
-            col_name=col_name,
-            method=rel_abundance_method,
-            reference_stats=reference_stats,
-        ),
-        "frequency": lambda d: consistency_score(
-            d,
-            col_id=col_id,
-            col_name=col_name,
-        ),
-        "density": lambda d: density_score(
-            d,
-            col_id=col_id,
-            col_name=col_name,
-            area_col="region_area",
-        ),
-    }
-
-    if scores is None:
-        scores = list(scorers.keys())
-
-    invalid = [s for s in scores if s not in scorers]
-    if invalid:
-        raise ValueError(
-            f"Unknown score(s): {invalid}. "
-            f"Available scores: {list(scorers.keys())}"
-        )
-
-    def compute_score_table(data: pd.DataFrame) -> pd.DataFrame:
-        result_df = None
-
-        for score_name in scores:
-            score_df = scorers[score_name](data)
-
-            if result_df is None:
-                result_df = score_df
-                continue
-
-            cols_to_add = [
-                c for c in score_df.columns
-                if c not in result_df.columns
-            ]
-
-            result_df = result_df.merge(
-                score_df[[col_id] + cols_to_add],
-                on=col_id,
-                how="outer",
-            )
-
-        return result_df
-
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-
     if group_cols is None:
-        score_df = compute_score_table(region_by_subject)
+        score_df = score_table(
+            region_by_subject=region_by_subject,
+            scores=scores,
+            col_id=col_id,
+            col_name=col_name,
+            rel_abundance_method=rel_abundance_method,
+            reference_stats=reference_stats,
+        )
         score_df.to_csv(out_path, index=False)
         return score_df
 
@@ -631,10 +701,17 @@ def save_scores(
         base_name = os.path.splitext(os.path.basename(out_path))[0]
 
     results: dict[str, pd.DataFrame] = {}
-
     for group, sub_df in region_by_subject.groupby("group_label", dropna=False):
         group_str = str(group)
-        group_score_df = compute_score_table(sub_df)
+
+        group_score_df = score_table(
+            region_by_subject=sub_df,
+            scores=scores,
+            col_id=col_id,
+            col_name=col_name,
+            rel_abundance_method=rel_abundance_method,
+            reference_stats=reference_stats,
+        )
 
         group_out = os.path.join(out_dir, f"{base_name}_{group_str}.csv")
         group_score_df.to_csv(group_out, index=False)
