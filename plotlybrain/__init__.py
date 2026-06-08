@@ -42,5 +42,6 @@ from plotlybrain.choropleth_render import (
 
 from plotlybrain.io import (
     load_geojson, 
-    load_score
+    load_score,
+    save_figure
 )
