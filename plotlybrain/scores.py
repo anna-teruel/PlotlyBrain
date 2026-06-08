@@ -368,7 +368,7 @@ def _compute_selected_scores(
           scores: list[ScoreName],
           col_id: str = "Region ID",
           col_name: str = "Region name",
-          rel_abund_method: RelAbundanceMethod = "within",
+          rel_abundance_method: RelAbundanceMethod = "within",
           reference_stats: dict[str, float] | None = None, 
 ) -> pd.DataFrame:
     """
@@ -386,7 +386,7 @@ def _compute_selected_scores(
             Column containing Allen structure IDs.
         col_name : str, default="Region name"
             Column containing region names.
-        rel_abund_method : {"within", "reference"}, default="within"
+        rel_abundance_method : {"within", "reference"}, default="within"
             Normalization method used for relative abundance.
         reference_stats : dict[str, float] | None, default=None
             Reference statistics used when
@@ -402,7 +402,7 @@ def _compute_selected_scores(
             d,
             col_id=col_id,
             col_name=col_name,
-            method=rel_abund_method,
+            method=rel_abundance_method,
             reference_stats=reference_stats,
         ),
         "frequency": lambda d: consistency_score(
