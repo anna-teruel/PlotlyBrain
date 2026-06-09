@@ -1,0 +1,35 @@
+/* PlotlyBrain dashboard — small visual refinements on top of Mantine. */
+
+body {
+	margin: 0;
+	font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Make the brain graph container fill its card and feel responsive. */
+#brain-graph {
+	width: 100%;
+}
+
+/* Slice slider breathing room. */
+#slice-slider-wrap {
+	padding: 4px 6px 10px 6px;
+}
+
+/* Slider mark (tick) labels are too dark on the dark scheme — lighten them.
+   The `.slider-dark` class is toggled on the wrapper from the color-scheme
+   switch; !important beats rc-slider's default mark color. */
+#slice-slider-wrap.slider-dark .dash-slider-mark {
+	color: #c1c2c5 !important;
+}
+
+/* DataTable: tidy, scrollable, sticky header. */
+#results-table .dash-spreadsheet-container .dash-spreadsheet-inner th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+}
+
+/* Keep progress bars visible even at 0%. */
+.mantine-Progress-root {
+	min-height: 8px;
+}

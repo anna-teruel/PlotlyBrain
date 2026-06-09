@@ -36,11 +36,19 @@ dependencies = [
     "rasterio",
     "shapely",
     "scikit-image",
+    "dash>=2.17",
+    "dash-mantine-components>=0.14",
+    "diskcache",
+    "multiprocess",
+    "psutil",
 ]
 
     [project.urls]
     Homepage = "https://github.com/anna-teruel/PlotlyBrain"
     Issues   = "https://github.com/anna-teruel/PlotlyBrain/issues"
+
+    [project.scripts]
+    plotlybrain-app = "plotlybrain.app.__main__:main"
 
 [tool.setuptools]
 include-package-data = true
@@ -49,6 +57,9 @@ include-package-data = true
     where      = [ "." ]
     include    = [ "plotlybrain*" ]
     namespaces = true
+
+    [tool.setuptools.package-data]
+    plotlybrain = [ "app/assets/*" ]
 
 [tool.ruff]
 line-length = 100
