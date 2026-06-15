@@ -7,9 +7,11 @@ from plotlybrain.scores import (
     relative_abundance,
     consistency_score,
     density_score,
+    score_table,
     save_scores,
 )
 from plotlybrain.coord_system import (
+    CCFConfig,
     get_ccf_config,
     coord_mm_to_slice_index,
     slice_index_to_coordinate_mm,
@@ -30,16 +32,22 @@ from plotlybrain.build_geoJSON import (
     save_geojson,
 )
 
-from plotlybrain.plotly_render import (
-    infer_score_column,
-    load_score,
-    load_geojson,
-    get_color_scale_params,
-    render_brain_slice,
-    render_brain_slice_from_file,
-    load_manifest,
-    find_geojson_for_slice,
-    value_to_color,
-    export_brain_slice
+from plotlybrain.metadata import (
+    MetadataConfig
 )
 
+from plotlybrain.choropleth_render import (
+    render_brain_slice
+)
+
+from plotlybrain.io import (
+    load_geojson, 
+    load_score,
+    save_figure
+)
+
+from plotlybrain.types import (
+    ScoreName, 
+    RelAbundanceMethod, 
+    ReferenceMode
+)
