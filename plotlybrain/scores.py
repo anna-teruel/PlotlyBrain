@@ -11,10 +11,8 @@ import pandas as pd
 from scipy.stats import zscore
 
 from plotlybrain.metadata import MetadataConfig
+from plotlybrain.types import ScoreName, RelAbundanceMethod, ReferenceMode
 
-ScoreName = Literal["rel_abundance", "frequency", "density"]
-RelAbundanceMethod = Literal["within", "reference"]
-ReferenceMode = Literal["pooled", "group"]
 ScoreFn = Callable[[pd.DataFrame], pd.DataFrame]
 
 def find_animal_id(filename: str) -> str:
@@ -452,7 +450,7 @@ def score_table(
     rel_abundance_method: RelAbundanceMethod = "within",
     reference_mode: ReferenceMode = "pooled",
     reference_group: str | list[str] | None = None,
-) -> pd.DataFrame | dict[str, pd.DataFrame]:
+) -> pd.DataFrame:
     """
     Compute region-level score tables from QUINT exports.
 
@@ -490,16 +488,29 @@ def score_table(
             Separator used when combining multiple grouping columns.
         rel_abundance_method : {"within", "reference"}, default="within"
             Normalization method used when computing relative abundance.
+            - ``within``: normalizes each group separately. This is useful
+            to identify enriched regions within a group/cohort, but values
+            are not directly comparable across cohorts/groups. 
+            - ``reference``: normalizes each region using reference 
+            statistics computed from a reference population (shared reference
+            mean and standard deviation). This makes values more comparable
+            across groups, provided the same reference is used. 
         reference_mode : {"pooled", "group"}, default="pooled"
             How reference statistics are computed when using
             ``rel_abundance_method="reference"``.
+            - ``pooled``: computes reference statistics from all available
+            - ``group``: computes reference statistics only from the group
+            specified by ``reference_group``. 
         reference_group : str | list[str] | None, default=None
-            Reference group used when ``reference_mode="group"``.
+            Group used as the reference population when ``reference_mode = "group"``.
+            If multiple grouping columns are used, provide the group values as a 
+            list in the same order as ``group_col``.
 
     Returns:
-        pd.DataFrame | dict[str, pd.DataFrame]
-            If no grouping is used, returns a single score table. If grouping
-            is used, returns a dictionary mapping group labels to score tables.
+        pd.DataFrame 
+            Region-level score table. If grouping is used, results for all
+            groups are concatenated into a single table with group identity
+            stored in the ``group_label`` column. 
 
     Raises:
         ValueError
@@ -605,10 +616,9 @@ def score_table(
             reference_stats=reference_stats,
         )
 
-    results: dict[str, pd.DataFrame] = {}
-
+    group_score_tables = []
     for group, sub_df in region_by_subject.groupby("group_label", dropna=False):
-        results[str(group)] = _compute_selected_scores(
+        group_score_df = _compute_selected_scores(
             df=sub_df,
             scores=scores,
             col_id=col_id,
@@ -617,7 +627,11 @@ def score_table(
             reference_stats=reference_stats,
         )
 
-    return results
+        group_score_df.insert(0, "group_label", str(group))
+        group_score_tables.append(group_score_df)
+
+
+    return pd.concat(group_score_tables, ignore_index=True)
 
 def save_scores(
     data_dir: str,
@@ -637,7 +651,7 @@ def save_scores(
     rel_abundance_method: RelAbundanceMethod = "within",
     reference_mode: ReferenceMode = "pooled",
     reference_group: str | list[str] | None = None,
-) -> pd.DataFrame | dict[str, pd.DataFrame]:
+) -> pd.DataFrame:
     """
     Compute region-level score tables and save them to disk.
     """
@@ -661,16 +675,6 @@ def save_scores(
     )
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-
-    if isinstance(results, dict):
-        out_dir = os.path.dirname(out_path) or "."
-        base_name = os.path.splitext(os.path.basename(out_path))[0]
-
-        for group, group_df in results.items():
-            group_out = os.path.join(out_dir, f"{base_name}_{group}.csv")
-            group_df.to_csv(group_out, index=False)
-
-        return results
 
     results.to_csv(out_path, index=False)
     return results

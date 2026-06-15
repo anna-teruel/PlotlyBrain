@@ -45,3 +45,9 @@ from plotlybrain.io import (
     load_score,
     save_figure
 )
+
+from plotlybrain.types import (
+    ScoreName, 
+    RelAbundanceMethod, 
+    ReferenceMode
+)

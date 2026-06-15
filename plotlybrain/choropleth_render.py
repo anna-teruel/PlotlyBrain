@@ -7,27 +7,20 @@ from __future__ import annotations
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-
-from plotlybrain.io import load_geojson, load_score
+from plotly.colors import sample_colorscale
 
 def render_brain_slice(
     geojson_obj: dict,
     score_df: pd.DataFrame,
     value_col: str,
-    title: str | None = None,
-    cmap: str = "Viridis",
     zmin: float | None = None,
     zmax: float | None = None,
     col_id: str = "Region ID",
     name_col: str = "Region name",
     line_color: str = "rgba(255,255,255,0.9)",
     line_width: float = 0.5,
-    map_style: str = "white-bg",
-    zoom: float = 3,
-    center: dict[str, float] = {"lat": 0, "lon": 0},
-    width: int | None = None,
-    height: int | None = None,
     exclude_ids: tuple[int, ...] = (0, 997),
+    **kwargs,
 ) -> go.Figure:
     """
     Render Allen atlas slices using px.choropleth_map.
@@ -42,10 +35,6 @@ def render_brain_slice(
             ``value_col``.
         value_col : str
             Name of the score column to visualize.
-        title : str | None, default=None
-            Figure title.
-        cmap : str, default="Viridis"
-            Plotly colorscale used to color regions.
         zmin : float | None, default=None
             Minimum value used for color normalization. If None, Plotly
             infers the minimum from the data.
@@ -60,18 +49,14 @@ def render_brain_slice(
             Boundary color used to outline regions.
         line_width : float, default=0.5
             Boundary line width in pixels.
-        map_style : str, default="white-bg"
-            Plotly map style.
-        zoom : float, default=3
-            Initial map zoom level.
-        center :dict[str, float] = {"lat": 0, "lon": 0},
-            Map center. If None, defaults to ``{"lat": 0, "lon": 0}``.
-        width : int | None, default=None
-            Figure width in pixels.
-        height : int | None, default=None
-            Figure height in pixels.
         exclude_ids : tuple[int, ...], default=(0, 997)
             Allen structure IDs excluded from rendering.
+        **kwargs
+            Additional keyword arguments passed directly to
+            ``plotly.express.choropleth_map``. These can be used to customize
+            Plotly options such as ``title``, ``color_continuous_scale``,
+            ``map_style``, ``center``, ``zoom``, ``width``, ``height``,
+            ``opacity``, ``template`` and ``labels``.
 
     Returns:
         go.Figure
@@ -128,6 +113,11 @@ def render_brain_slice(
     if zmin is not None and zmax is not None:
         range_color = (zmin, zmax)
 
+    kwargs.setdefault("color_continuous_scale", "Viridis")
+    kwargs.setdefault("map_style", "white-bg")
+    kwargs.setdefault("center", {"lat": 0, "lon": 0})
+    kwargs.setdefault("zoom", 3)
+
     fig = px.choropleth_map(
         plot_df,
         geojson=geojson_obj,
@@ -144,13 +134,8 @@ def render_brain_slice(
             value_col: True,
             "feature_id": False,
         },
-        color_continuous_scale=cmap,
         range_color=range_color,
-        map_style=map_style,
-        center=center,
-        zoom=zoom,
-        width=width,
-        height=height,
+        **kwargs,
     )
 
     fig.update_traces(
@@ -160,10 +145,44 @@ def render_brain_slice(
     )
 
     fig.update_layout(
-        title=title,
         margin=dict(l=0, r=0, t=40, b=0),
         paper_bgcolor="white",
         plot_bgcolor="white",
     )
 
     return fig
+
+def value_to_color(
+    value: float | None,
+    vmin: float | None,
+    vmax: float | None,
+    colorscale: str = "RdBu_r",
+    na_color: str = "#d9d9d9",
+) -> str:
+    """
+    Map a numeric value (score) to a Plotly colorscale color.
+
+    Args:
+        value : float | None
+            Score value for one region.
+        vmin, vmax : float | None
+            Color normalization limits.
+        colorscale : str
+            Plotly colorscale name.
+        na_color : str
+            Fallback color for missing values.
+
+    Returns:
+        str
+            CSS color string.
+    """
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return na_color
+
+    if vmin is None or vmax is None or vmax == vmin:
+        t = 0.5
+    else:
+        t = (float(value) - float(vmin)) / (float(vmax) - float(vmin))
+        t = max(0.0, min(1.0, t))
+
+    return sample_colorscale(colorscale, [t])[0]

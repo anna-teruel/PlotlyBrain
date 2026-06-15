@@ -11,8 +11,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 from shapely.geometry import MultiPolygon, shape
-
-ScoreName = Literal["rel_abundance", "frequency", "density"]
+from plotlybrain.types import ScoreName
 
 def load_score(
     score_csv: str,
