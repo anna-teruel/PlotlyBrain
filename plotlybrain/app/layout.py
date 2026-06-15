@@ -214,11 +214,23 @@ def _step3_scores():
 				dmc.Grid(
 					[
 						dmc.GridCol(
-							dmc.TextInput(
-								id="score-data-dir",
-								label="QUINT data folder",
-								placeholder="path to *_RefAtlasRegions.csv",
-								debounce=500,
+							dmc.Flex(
+								[
+									dmc.TextInput(
+										id="score-data-dir",
+										label="QUINT data folder",
+										placeholder="path to *_RefAtlasRegions.csv",
+										debounce=500,
+										style={"flex": 1},
+									),
+									dmc.Button(
+										"Browse",
+										id="browse-data-dir-btn",
+										variant="light",
+									),
+								],
+								gap="xs",
+								align="flex-end",
 							),
 							span=9,
 						),
@@ -232,11 +244,23 @@ def _step3_scores():
 							span=3,
 						),
 						dmc.GridCol(
-							dmc.TextInput(
-								id="metadata-path",
-								label="Metadata CSV",
-								placeholder="path to metadata csv",
-								debounce=500,
+							dmc.Flex(
+								[
+									dmc.TextInput(
+										id="metadata-path",
+										label="Metadata CSV",
+										placeholder="path to metadata csv",
+										debounce=500,
+										style={"flex": 1},
+									),
+									dmc.Button(
+										"Browse",
+										id="browse-metadata-btn",
+										variant="light",
+									),
+								],
+								gap="xs",
+								align="flex-end",
 							),
 							span=9,
 						),
@@ -326,18 +350,7 @@ def _step3_scores():
 def _header():
 	return dmc.Group(
 		[
-			dmc.Group(
-				[
-					html.Img(
-						src="/assets/plotly_brain_logo.png",
-						style={"height": "40px", "width": "auto"},
-						alt="PlotlyBrain logo",
-					),
-					dmc.Badge("dashboard", variant="light", color="grape"),
-				],
-				gap="sm",
-				align="center",
-			),
+			dmc.Badge("dashboard", variant="light", color="grape"),
 			dmc.Switch(
 				id="color-scheme-toggle",
 				size="xl",
@@ -352,7 +365,7 @@ def _header():
 		],
 		justify="space-between",
 		align="center",
-		h=48,
+		h=38,
 		style={"marginBottom": "4px"},
 	)
 
@@ -360,6 +373,17 @@ def _header():
 def _left_panel():
 	return dmc.Stack(
 		[
+			html.Img(
+				src="/assets/plotly_brain_logo.png",
+				style={
+					"width": "100%",
+					"maxWidth": "300px",
+					"height": "auto",
+					"display": "block",
+					"margin": "0 auto",
+				},
+				alt="PlotlyBrain logo",
+			),
 			_step1_load(),
 			_step2_geojson(),
 			_step3_scores(),
@@ -446,25 +470,46 @@ def _controls_panel():
 				dmc.Divider(label="Export", labelPosition="center"),
 				dmc.Group(
 					[
-						dmc.TextInput(id="export-dir", label="Output folder", value=".", w="40%"),
+						dmc.Flex(
+							[
+								dmc.TextInput(
+									id="export-dir",
+									label="Output folder",
+									value=".",
+									style={"flex": 1},
+								),
+								dmc.Button("Browse", id="browse-export-dir-btn", variant="light"),
+							],
+							gap="xs",
+							align="flex-end",
+							style={"flex": 1},
+						),
 						dmc.TextInput(
-							id="export-name", label="File name", value="brain_slice", w="32%"
+							id="export-name", label="File name", value="brain_slice", w=120
 						),
 						dmc.Select(
 							id="export-format",
 							label="Format",
 							data=EXPORT_FORMATS,
 							value="svg",
-							w="22%",
+							w=92,
 							allowDeselect=False,
 						),
+					],
+					gap="xs",
+					align="flex-end",
+					wrap="nowrap",
+				),
+				dmc.Group(
+					[
+						dmc.Button("Export current slice", id="export-btn", variant="light"),
+						dmc.Button("Export all slices", id="export-all-btn", variant="light"),
 					],
 					grow=True,
 					gap="xs",
 				),
-				dmc.Button(
-					"Export current slice", id="export-btn", variant="light", fullWidth=True
-				),
+				dmc.Progress(id="export-progress", value=0, animated=False, striped=True),
+				dmc.Text(id="export-progress-label", size="xs", c="dimmed"),
 				dmc.Text(id="export-status", size="xs", c="dimmed"),
 			],
 			gap="sm",
@@ -575,6 +620,7 @@ def build_layout():
 					style={"minHeight": "100vh"},
 				),
 			],
+			id="app-root",
 			style={
 				"padding": "12px",
 				"backgroundColor": "var(--mantine-color-body)",

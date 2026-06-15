@@ -4,6 +4,8 @@ import io
 import json
 import math
 import os
+import subprocess
+import sys
 
 import numpy as np
 import pandas as pd
@@ -177,7 +179,73 @@ def _slider_config(slices: list[dict]):
 	return 0, n - 1, 0, marks
 
 
+_ORIENTATION_AXIS = {"coronal": "AP", "sagittal": "ML", "horizontal": "DV"}
+
+
+def _slice_filename(name: str, orientation: str | None, coordinate_mm, slice_index: int) -> str:
+	"""Build a per-slice export filename embedding the slice coordinate.
+
+	Uses the axis implied by the slicing orientation (coronal->AP, sagittal->ML,
+	horizontal->DV), e.g. ``brain_slice_AP_+1.50mm``. Falls back to the slice
+	index when orientation or coordinate is unavailable (e.g. loaded GeoJSON).
+	"""
+	axis = _ORIENTATION_AXIS.get(orientation)
+	if axis is not None and coordinate_mm is not None:
+		return f"{name}_{axis}_{float(coordinate_mm):+.2f}mm"
+	return f"{name}_slice{slice_index}"
+
+
+def _native_path_dialog(directory: bool) -> str | None:
+	"""Open a native OS dialog and return the chosen path, or None if cancelled.
+
+	The dialog runs in a separate process: tkinter must own the main thread,
+	but Dash callbacks run on worker threads. Server-side only, so this works
+	while the app is served locally (server and user on the same machine).
+	"""
+	picker = "askdirectory" if directory else "askopenfilename"
+	script = (
+		"import tkinter, tkinter.filedialog\n"
+		"r = tkinter.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+		f"print(tkinter.filedialog.{picker}())\n"
+	)
+	result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+	return result.stdout.strip() or None
+
+
+def _selected_flat(selected_ids, static_color, use_flat):
+	"""Resolve the export gating from the live controls: the set of selected
+	region ids and the flat color (``None`` when the flat toggle is off, so the
+	colormap is used)."""
+	selected = {int(i) for i in (selected_ids or [])}
+	flat = (static_color or "#fa5252") if use_flat else None
+	return selected, flat
+
+
 def register_callbacks(app) -> None:
+
+	@app.callback(
+		Output("score-data-dir", "value"),
+		Input("browse-data-dir-btn", "n_clicks"),
+		prevent_initial_call=True,
+	)
+	def browse_data_dir(n_clicks):
+		return _native_path_dialog(directory=True) or no_update
+
+	@app.callback(
+		Output("metadata-path", "value"),
+		Input("browse-metadata-btn", "n_clicks"),
+		prevent_initial_call=True,
+	)
+	def browse_metadata(n_clicks):
+		return _native_path_dialog(directory=False) or no_update
+
+	@app.callback(
+		Output("export-dir", "value"),
+		Input("browse-export-dir-btn", "n_clicks"),
+		prevent_initial_call=True,
+	)
+	def browse_export_dir(n_clicks):
+		return _native_path_dialog(directory=True) or no_update
 
 	@app.callback(
 		Output("session-store", "data"),
@@ -558,10 +626,10 @@ def register_callbacks(app) -> None:
 		and its "filter data..." placeholder.
 		"""
 		if dark:
-			border = "1px solid #373a40"
-			header = {"fontWeight": "600", "backgroundColor": "#2c2e33", "color": "#c1c2c5", "border": border}
-			data = {"backgroundColor": "#25262b", "color": "#c1c2c5", "border": border}
-			filt = {"backgroundColor": "#2c2e33", "color": "#c1c2c5", "border": border}
+			border = "1px solid #34345a"
+			header = {"fontWeight": "600", "backgroundColor": "#20203b", "color": "#c1c2c5", "border": border}
+			data = {"backgroundColor": "#191930", "color": "#c1c2c5", "border": border}
+			filt = {"backgroundColor": "#20203b", "color": "#c1c2c5", "border": border}
 			css = [
 				{"selector": ".dash-filter input", "rule": "color: #c1c2c5 !important;"},
 				{
@@ -570,10 +638,10 @@ def register_callbacks(app) -> None:
 				},
 			]
 		else:
-			border = "1px solid #e9ecef"
-			header = {"fontWeight": "600", "backgroundColor": "#f1f3f5", "color": "#212529", "border": border}
-			data = {"backgroundColor": "white", "color": "#212529", "border": border}
-			filt = {"backgroundColor": "white", "color": "#212529", "border": border}
+			border = "1px solid #c1d7f7"
+			header = {"fontWeight": "600", "backgroundColor": "#dde8fb", "color": "#2b3450", "border": border}
+			data = {"backgroundColor": "white", "color": "#2b3450", "border": border}
+			filt = {"backgroundColor": "#dde8fb", "color": "#2b3450", "border": border}
 			css = []
 		return header, data, filt, css
 
@@ -592,6 +660,9 @@ def register_callbacks(app) -> None:
 		State("export-dir", "value"),
 		State("export-name", "value"),
 		State("export-format", "value"),
+		State("results-table", "selected_row_ids"),
+		State("static-color", "value"),
+		State("static-color-toggle", "checked"),
 		prevent_initial_call=True,
 	)
 	def export_slice(
@@ -608,6 +679,9 @@ def register_callbacks(app) -> None:
 		out_dir,
 		name,
 		fmt,
+		selected_ids,
+		static_color,
+		use_flat,
 	):
 		geometry = cache.get(session_id, "geometry")
 		if geometry is None:
@@ -619,6 +693,10 @@ def register_callbacks(app) -> None:
 		records = scores[group]
 		slice_index = int(slices[int(slider_val)]["slice_index"])
 
+		# Match the live view: the row selection narrows coloring and the flat
+		# color carries over. The table's text filter is browse-only.
+		selected, flat = _selected_flat(selected_ids, static_color, use_flat)
+
 		fig = figure.build_export_figure(
 			geometry_payload=geometry,
 			score_records=records,
@@ -628,11 +706,97 @@ def register_callbacks(app) -> None:
 			zmin=zmin,
 			zmax=zmax,
 			title=f"{score} — slice {slice_index}",
+			selected_rids=selected,
+			flat_color=flat,
 		)
 		path = plotlybrain.save_figure(
 			fig, out_dir=out_dir or ".", filename=name or "brain_slice", extension=fmt or "svg"
 		)
 		return f"Saved: {path}"
+
+	@app.callback(
+		Output("export-status", "children", allow_duplicate=True),
+		Input("export-all-btn", "n_clicks"),
+		State("session-store", "data"),
+		State("scores-store", "data"),
+		State("slices-store", "data"),
+		State("score-select", "value"),
+		State("group-select", "value"),
+		State("colorscale-select", "value"),
+		State("zmin-input", "value"),
+		State("zmax-input", "value"),
+		State("export-dir", "value"),
+		State("export-name", "value"),
+		State("export-format", "value"),
+		State("results-table", "selected_row_ids"),
+		State("static-color", "value"),
+		State("static-color-toggle", "checked"),
+		background=True,
+		progress=[Output("export-progress", "value"), Output("export-progress-label", "children")],
+		running=[
+			(Output("export-all-btn", "disabled"), True, False),
+			(Output("export-btn", "disabled"), True, False),
+		],
+		prevent_initial_call=True,
+	)
+	def export_all_slices(
+		set_progress,
+		n_clicks,
+		session_id,
+		scores,
+		slices,
+		score,
+		group,
+		colorscale,
+		zmin,
+		zmax,
+		out_dir,
+		name,
+		fmt,
+		selected_ids,
+		static_color,
+		use_flat,
+	):
+		geometry = cache.get(session_id, "geometry")
+		if geometry is None:
+			return "No geometry in memory — build or load slices first."
+		if not scores or not slices:
+			return "Nothing to export yet."
+
+		group = group if group in scores else next(iter(scores))
+		records = scores[group]
+		orientation = geometry.get("orientation")
+
+		# Match the live view: the row selection narrows coloring and the flat
+		# color carries over, applied across all slices. The text filter is
+		# browse-only, so it does not affect the exported coloring.
+		selected, flat = _selected_flat(selected_ids, static_color, use_flat)
+
+		n = len(slices)
+		for i, meta in enumerate(slices, start=1):
+			slice_index = int(meta["slice_index"])
+			set_progress((int(i / n * 100), f"Exporting slice {i}/{n}…"))
+			fig = figure.build_export_figure(
+				geometry_payload=geometry,
+				score_records=records,
+				slice_index=slice_index,
+				score=score,
+				colorscale=colorscale,
+				zmin=zmin,
+				zmax=zmax,
+				title=f"{score} — slice {slice_index}",
+				selected_rids=selected,
+				flat_color=flat,
+			)
+			filename = _slice_filename(
+				name or "brain_slice", orientation, meta.get("coordinate_mm"), slice_index
+			)
+			plotlybrain.save_figure(
+				fig, out_dir=out_dir or ".", filename=filename, extension=fmt or "svg"
+			)
+
+		set_progress((100, ""))
+		return f"Saved {n} slice(s) to {out_dir or '.'}"
 
 	app.clientside_callback(
 		ClientsideFunction(namespace="plotlybrain", function_name="render"),
@@ -646,8 +810,6 @@ def register_callbacks(app) -> None:
 		Input("geometry-store", "data"),
 		Input("scores-store", "data"),
 		Input("slices-store", "data"),
-		Input("results-table", "derived_virtual_data"),
-		Input("results-table", "filter_query"),
 		Input("color-scheme-toggle", "checked"),
 		Input("results-table", "selected_row_ids"),
 		Input("static-color", "value"),

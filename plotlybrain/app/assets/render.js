@@ -110,7 +110,7 @@ function autoRange(valueMap, vmin, vmax) {
 }
 
 window.dash_clientside.plotlybrain = {
-	render: function (sliderVal, score, group, stops, zmin, zmax, geometry, scores, slices, tableData, filterQuery, dark, highlight, staticColor, useFlat) {
+	render: function (sliderVal, score, group, stops, zmin, zmax, geometry, scores, slices, dark, highlight, staticColor, useFlat) {
 		if (!geometry || !geometry.by_slice || !slices || !slices.length) {
 			return emptyFigure("Build or load slices to begin");
 		}
@@ -125,40 +125,28 @@ window.dash_clientside.plotlybrain = {
 		const valueMap = buildValueMap(pickRecords(scores, group), valueCol);
 		const [vmin, vmax] = autoRange(valueMap, zmin, zmax);
 
-		// Only gate coloring once a table filter is actually applied. With no
-		// filter, every region keeps its score color (no gray flash). When a filter
-		// is active, color just the regions still visible in the table; if the table
-		// data hasn't caught up to the current slice yet (no region in common, e.g.
-		// mid-drag), skip gating to avoid a transient gray frame.
-		const filterActive = typeof filterQuery === "string" && filterQuery.trim().length > 0;
-		let allowed = filterActive && Array.isArray(tableData) ? new Set(tableData.map((r) => r.rid)) : null;
-		if (allowed && !regions.some((rg) => allowed.has(rg.rid))) {
-			allowed = null;
-		}
-
-		// Keep-colored selection (driven by selected table rows): once any rows
-		// are selected, only those regions keep their score color; every other
-		// region renders as NA (value -> null -> gray). With no selection, all
-		// regions keep color. Stacks with the table filter (a region must pass
-		// both to stay lit). If none of the selected regions are on this slice
-		// (e.g. after moving the slider) we skip gating rather than gray it all.
+		// Coloring is narrowed by the row selection (checkboxes) only: once any
+		// rows are selected, just those regions keep their score color and every
+		// other region renders as NA (gray). With no selection, all regions keep
+		// color. The table's text filter only filters the table list, not the
+		// brain. If none of the selected regions are on this slice (e.g. after
+		// moving the slider) we skip gating rather than gray it all.
 		const selected = new Set(Array.isArray(highlight) ? highlight : []);
 		let selActive = selected.size > 0;
 		if (selActive && !regions.some((rg) => selected.has(rg.rid))) {
 			selActive = false;
 		}
 
-		// When the flat-color toggle is on and a table filter or row selection is
-		// actively narrowing this slice, turn the colormap off: kept regions get
-		// one flat color, the rest stay gray (NA). Otherwise, value-based coloring.
-		const staticMode = !!useFlat && (allowed !== null || selActive);
+		// When the flat-color toggle is on and a selection is narrowing this
+		// slice, turn the colormap off: kept regions get one flat color, the rest
+		// stay gray (NA). Otherwise, value-based coloring.
+		const staticMode = !!useFlat && selActive;
 		const staticFill = staticColor || "#fa5252";
 
 		const traces = [];
 		for (let i = 0; i < regions.length; i++) {
 			const region = regions[i];
-			const gated =
-				(allowed && !allowed.has(region.rid)) || (selActive && !selected.has(region.rid));
+			const gated = selActive && !selected.has(region.rid);
 			const value = gated ? null : valueMap[region.rid];
 			const fill = gated
 				? NA_COLOR

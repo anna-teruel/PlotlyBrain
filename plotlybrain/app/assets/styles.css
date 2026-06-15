@@ -5,6 +5,40 @@ body {
 	font-family: Inter, system-ui, -apple-system, sans-serif;
 }
 
+/* Dark-mode palette: navy-tinted surfaces/borders anchored on the #191930
+   background. dark-7 is the body, dark-6 the card/input surface, dark-4 the
+   borders; the lighter shades (text) are left as Mantine defaults. */
+[data-mantine-color-scheme="dark"] {
+	--mantine-color-body: #191930 !important;
+	--mantine-color-dark-4: #34345a !important; /* borders, dividers */
+	--mantine-color-dark-5: #2a2a4a !important; /* subtle/hover surfaces */
+	--mantine-color-dark-6: #20203b !important; /* cards, input backgrounds */
+	--mantine-color-dark-7: #191930 !important; /* base / body */
+	--mantine-color-dark-8: #131325 !important;
+	--mantine-color-dark-9: #0d0d1c !important;
+}
+
+/* Light scheme: an airy azure-tinted mirror of the dark navy theme. Soft azure
+   page, pale-azure cards that read as raised, azure-grey borders and muted
+   text. Overrides the inline white bg on #app-root. */
+[data-mantine-color-scheme="light"] {
+	--mantine-color-default-border: #c1d7f7 !important; /* hero azure */
+	/* Azure-tinted support greys (hue ~216) so surfaces, hovers and muted
+	   text harmonize with the background instead of reading neutral. */
+	--mantine-color-gray-0: #f0f4fd !important; /* subtle hover/surfaces */
+	--mantine-color-gray-1: #e6eefb !important;
+	--mantine-color-gray-2: #d8e3f7 !important;
+	--mantine-color-gray-6: #6c7a9b !important; /* dimmed text */
+	--mantine-color-gray-7: #424d6c !important; /* secondary text */
+}
+[data-mantine-color-scheme="light"] #app-root {
+	background: #c1d7f7 !important;
+}
+/* Cards: pale azure, lighter than the page so they still read as raised. */
+[data-mantine-color-scheme="light"] .mantine-Card-root {
+	background-color: #eaf1fd !important;
+}
+
 /* Make the brain graph container fill its card and feel responsive. */
 #brain-graph {
 	width: 100%;
@@ -20,6 +54,24 @@ body {
    switch; !important beats rc-slider's default mark color. */
 #slice-slider-wrap.slider-dark .dash-slider-mark {
 	color: #c1c2c5 !important;
+}
+
+/* Slice slider uses the primary (progress-bar) color so it stays visible.
+   This Dash slider renders Radix-style `dash-slider-*` parts; `included=False`
+   hides the filled range, so the thumb + track carry the color. */
+#slice-slider-wrap .dash-slider-track {
+	background-color: var(--mantine-color-default-border) !important;
+}
+#slice-slider-wrap .dash-slider-range {
+	background-color: var(--mantine-primary-color-filled) !important;
+}
+#slice-slider-wrap .dash-slider-thumb {
+	background-color: var(--mantine-primary-color-filled) !important;
+	border-color: var(--mantine-primary-color-filled) !important;
+}
+#slice-slider-wrap .dash-slider-thumb:hover,
+#slice-slider-wrap .dash-slider-thumb:focus {
+	box-shadow: 0 0 0 4px var(--mantine-primary-color-light) !important;
 }
 
 /* DataTable: tidy, scrollable, sticky header. */

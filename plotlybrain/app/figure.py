@@ -203,11 +203,18 @@ def build_export_figure(
 	zmin: float | None,
 	zmax: float | None,
 	title: str | None = None,
+	*,
+	selected_rids: set[int] | None = None,
+	flat_color: str | None = None,
 ) -> go.Figure:
 	"""Server-side render of one slice for static export, matching the app view.
 
 	Built from the same pixel geometry the browser uses, so exported figures are
 	oriented and proportioned identically to what the user sees.
+
+	The optional ``selected_rids`` (row selection) and ``flat_color`` (flat-color
+	toggle) mirror the live view's gating in ``assets/render.js`` so an export
+	reflects what's on screen.
 	"""
 	value_col = SCORE_VALUE_COLUMN[score]
 	id2value: dict[int, float] = {}
@@ -221,11 +228,26 @@ def build_export_figure(
 	dims = geometry_payload.get("dims")
 	cmap = colorscale or "RdBu_r"
 
+	# Mirror the live view's gating (see assets/render.js): the row selection
+	# narrows coloring to `selected_rids`, and the flat color replaces the
+	# colormap once a selection is narrowing this slice. The gate is dropped when
+	# none of the selected regions are on this slice (same anti-flash guard as the
+	# browser), so the export matches what's on screen.
+	region_rids = {int(r["rid"]) for r in regions}
+	selected = selected_rids or set()
+	sel_active = bool(selected) and not region_rids.isdisjoint(selected)
+	static_mode = flat_color is not None and sel_active
+
 	fig = go.Figure()
 	for region in regions:
-		fill = value_to_color(
-			id2value.get(region["rid"]), zmin, zmax, colorscale=cmap, na_color="#d9d9d9"
-		)
+		rid = int(region["rid"])
+		gated = sel_active and rid not in selected
+		if gated:
+			fill = "#d9d9d9"
+		elif static_mode:
+			fill = flat_color
+		else:
+			fill = value_to_color(id2value.get(rid), zmin, zmax, colorscale=cmap, na_color="#d9d9d9")
 		for ring in region["rings"]:
 			fig.add_trace(
 				go.Scatter(
@@ -242,7 +264,7 @@ def build_export_figure(
 				)
 			)
 
-	if zmin is not None and zmax is not None:
+	if zmin is not None and zmax is not None and not static_mode:
 		fig.add_trace(
 			go.Scatter(
 				x=[None, None],

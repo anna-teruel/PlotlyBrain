@@ -1,14 +1,7 @@
-"""Entry point for the PlotlyBrain dashboard.
-
-Run with either::
-
-    python -m plotlybrain.app
-    plotlybrain-app            # console script (after pip install)
-"""
-
-from __future__ import annotations
-
 import argparse
+import os
+import webbrowser
+from threading import Timer
 
 
 def main() -> None:
@@ -21,6 +14,14 @@ def main() -> None:
 	from plotlybrain.app.server import create_app
 
 	app = create_app()
+
+	# Open the browser once, after the server has had a moment to start. The
+	# WERKZEUG_RUN_MAIN guard keeps the reloader from opening a new tab on
+	# every hot reload.
+	if not os.environ.get("WERKZEUG_RUN_MAIN"):
+		url = f"http://{args.host}:{args.port}"
+		Timer(1, lambda: webbrowser.open(url)).start()
+
 	app.run(host=args.host, port=args.port, debug=True)
 
 
