@@ -7,8 +7,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-
-from plotlybrain.io import load_geojson, load_score
+from plotly.colors import sample_colorscale
 
 def render_brain_slice(
     geojson_obj: dict,
@@ -167,3 +166,38 @@ def render_brain_slice(
     )
 
     return fig
+
+def value_to_color(
+    value: float | None,
+    vmin: float | None,
+    vmax: float | None,
+    colorscale: str = "RdBu_r",
+    na_color: str = "#d9d9d9",
+) -> str:
+    """
+    Map a numeric value (score) to a Plotly colorscale color.
+
+    Args:
+        value : float | None
+            Score value for one region.
+        vmin, vmax : float | None
+            Color normalization limits.
+        colorscale : str
+            Plotly colorscale name.
+        na_color : str
+            Fallback color for missing values.
+
+    Returns:
+        str
+            CSS color string.
+    """
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return na_color
+
+    if vmin is None or vmax is None or vmax == vmin:
+        t = 0.5
+    else:
+        t = (float(value) - float(vmin)) / (float(vmax) - float(vmin))
+        t = max(0.0, min(1.0, t))
+
+    return sample_colorscale(colorscale, [t])[0]
