@@ -11,10 +11,8 @@ import pandas as pd
 from scipy.stats import zscore
 
 from plotlybrain.metadata import MetadataConfig
+from plotlybrain.types import ScoreName, RelAbundanceMethod, ReferenceMode
 
-ScoreName = Literal["rel_abundance", "frequency", "density"]
-RelAbundanceMethod = Literal["within", "reference"]
-ReferenceMode = Literal["pooled", "group"]
 ScoreFn = Callable[[pd.DataFrame], pd.DataFrame]
 
 def find_animal_id(filename: str) -> str:
@@ -653,7 +651,7 @@ def save_scores(
     rel_abundance_method: RelAbundanceMethod = "within",
     reference_mode: ReferenceMode = "pooled",
     reference_group: str | list[str] | None = None,
-) -> pd.DataFrame | dict[str, pd.DataFrame]:
+) -> pd.DataFrame:
     """
     Compute region-level score tables and save them to disk.
     """
@@ -677,16 +675,6 @@ def save_scores(
     )
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-
-    if isinstance(results, dict):
-        out_dir = os.path.dirname(out_path) or "."
-        base_name = os.path.splitext(os.path.basename(out_path))[0]
-
-        for group, group_df in results.items():
-            group_out = os.path.join(out_dir, f"{base_name}_{group}.csv")
-            group_df.to_csv(group_out, index=False)
-
-        return results
 
     results.to_csv(out_path, index=False)
     return results
