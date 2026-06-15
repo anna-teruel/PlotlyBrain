@@ -6,7 +6,7 @@ from plotly.colors import sample_colorscale
 
 from plotlybrain.build_geoJSON import get_slice_view, mask_to_polygon
 from plotlybrain.coord_system import slice_index_to_coordinate_mm
-from plotlybrain.plotly_render import value_to_color
+from plotlybrain.choropleth_render import value_to_color
 
 SCORE_VALUE_COLUMN = {
 	"rel_abundance": "relative_abundance_z",
