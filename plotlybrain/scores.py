@@ -452,7 +452,7 @@ def score_table(
     rel_abundance_method: RelAbundanceMethod = "within",
     reference_mode: ReferenceMode = "pooled",
     reference_group: str | list[str] | None = None,
-) -> pd.DataFrame | dict[str, pd.DataFrame]:
+) -> pd.DataFrame:
     """
     Compute region-level score tables from QUINT exports.
 
@@ -497,9 +497,10 @@ def score_table(
             Reference group used when ``reference_mode="group"``.
 
     Returns:
-        pd.DataFrame | dict[str, pd.DataFrame]
-            If no grouping is used, returns a single score table. If grouping
-            is used, returns a dictionary mapping group labels to score tables.
+        pd.DataFrame 
+            Region-level score table. If grouping is used, results for all
+            groups are concatenated into a single table with group identity
+            stored in the ``group_label`` column. 
 
     Raises:
         ValueError
@@ -605,10 +606,9 @@ def score_table(
             reference_stats=reference_stats,
         )
 
-    results: dict[str, pd.DataFrame] = {}
-
+    group_score_tables = []
     for group, sub_df in region_by_subject.groupby("group_label", dropna=False):
-        results[str(group)] = _compute_selected_scores(
+        group_score_df = _compute_selected_scores(
             df=sub_df,
             scores=scores,
             col_id=col_id,
@@ -617,7 +617,11 @@ def score_table(
             reference_stats=reference_stats,
         )
 
-    return results
+        group_score_df.insert(0, "group_label", str(group))
+        group_score_tables.append(group_score_df)
+
+
+    return pd.concat(group_score_tables, ignore_index=True)
 
 def save_scores(
     data_dir: str,
