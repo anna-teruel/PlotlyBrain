@@ -490,11 +490,23 @@ def score_table(
             Separator used when combining multiple grouping columns.
         rel_abundance_method : {"within", "reference"}, default="within"
             Normalization method used when computing relative abundance.
+            - ``within``: normalizes each group separately. This is useful
+            to identify enriched regions within a group/cohort, but values
+            are not directly comparable across cohorts/groups. 
+            - ``reference``: normalizes each region using reference 
+            statistics computed from a reference population (shared reference
+            mean and standard deviation). This makes values more comparable
+            across groups, provided the same reference is used. 
         reference_mode : {"pooled", "group"}, default="pooled"
             How reference statistics are computed when using
             ``rel_abundance_method="reference"``.
+            - ``pooled``: computes reference statistics from all available
+            - ``group``: computes reference statistics only from the group
+            specified by ``reference_group``. 
         reference_group : str | list[str] | None, default=None
-            Reference group used when ``reference_mode="group"``.
+            Group used as the reference population when ``reference_mode = "group"``.
+            If multiple grouping columns are used, provide the group values as a 
+            list in the same order as ``group_col``.
 
     Returns:
         pd.DataFrame 
