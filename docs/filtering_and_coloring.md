@@ -1,0 +1,195 @@
+# Filtering & coloring rendered slices
+
+This guide explains how regions on a rendered slice get their color, how to use
+the table to **filter and find** regions, how to **highlight a chosen set** with
+the row checkboxes, and how to apply a single **flat color** instead of the
+colormap.
+
+All of this happens live in the browser as you drag the slider or change a
+control — there is no server round-trip. The logic lives in
+[`plotlybrain/app/assets/render.js`](../plotlybrain/app/assets/render.js); the
+controls are defined in
+[`plotlybrain/app/layout.py`](../plotlybrain/app/layout.py).
+
+---
+
+## 1. How a region gets its color
+
+For the current slice, each region's fill is decided in this order:
+
+1. **Look up the region's value** for the selected score
+   (`rel_abundance` → `relative_abundance_z`, `frequency` → `frequency`,
+   `density` → `density`).
+2. **Decide whether the region is "gated off"** by the row selection (see §4).
+   A gated region is drawn as **NA gray** (`#d9d9d9`).
+3. **Pick the fill for non-gated regions:**
+   - **Flat mode** (§5 active) → the chosen flat color.
+   - Otherwise → a color interpolated from the **colorscale** between `zmin`
+     and `zmax`.
+4. Regions with no value (or `NaN`) are always **NA gray**.
+
+When the colormap is in use, a colorbar is shown on the right. In flat mode the
+colorbar is hidden (the colormap is off).
+
+> **Key model:** which regions stay colored on the brain is controlled by the
+> **row checkboxes** (selection), *not* by the table's text filter. The filter
+> is a browsing aid for the table only (see §3).
+
+### The coloring controls
+
+| Control | Component | Purpose |
+| --- | --- | --- |
+| **Score** | `score-select` (segmented) | Which metric drives the value/color: Rel. abundance, Frequency, Density. |
+| **Group** | `group-select` | Which experimental group's scores to show. |
+| **Colorscale** | `colorscale-select` | Plotly sequential colorscale used for value coloring. |
+| **zmin / zmax** | `zmin-input` / `zmax-input` | Fixed color range. Leave blank to auto-range to the slice's min/max. |
+| **Flat toggle** | `static-color-toggle` | Switches selected regions to a single flat color (see §5). |
+| **Flat color** | `static-color` | The flat color (hex). Default `#fa5252`. |
+
+---
+
+## 2. The region table
+
+The table to the right of the brain lists **only the regions present on the
+current slice**, with three columns:
+
+| Column header | `id` | Type |
+| --- | --- | --- |
+| `Region ID` | `rid` | numeric |
+| `Region` | `name` | text |
+| *(the score name, e.g. `rel_abundance`)* | `value` | numeric |
+
+It supports **native sorting**, **native filtering** (a filter box under each
+header), and **multi-row selection** (checkboxes). Sorting and filtering help
+you *find* regions; the checkboxes are what control highlighting on the brain.
+
+---
+
+## 3. Filtering & sorting the table
+
+Type into a column's filter box (the row just under the header), or click a
+header to sort. This narrows / reorders the **table list** so you can find
+regions quickly — for example, sort by value descending, or filter the names to
+a structure of interest.
+
+> **Filtering does not recolor the brain.** It only changes which rows are shown
+> in the table. To highlight regions on the brain, tick their checkboxes (§4).
+> This keeps the behavior simple and identical between the live view and
+> exports.
+
+### Constructing filters
+
+Each column's filter box takes one expression **for that column**; filters
+across columns combine with logical AND.
+
+**Operators:** `=`, `!=`, `<`, `<=`, `>`, `>=`, `contains`.
+
+| Column | You type | Shows rows where |
+| --- | --- | --- |
+| score value | `> 2` | value greater than 2 |
+| score value | `<= -1.5` | value ≤ −1.5 |
+| `Region` | `cortex` | name contains "cortex" (text defaults to *contains*) |
+| `Region` | `contains thalamus` | same, explicit |
+| `Region ID` | `= 315` | region ID equals 315 |
+
+A common workflow: filter to a set of regions, then **select all visible rows**
+with the table's header checkbox to highlight exactly that set on the brain.
+
+---
+
+## 4. Highlighting regions (row checkboxes)
+
+Tick one or more rows' checkboxes to **keep only those regions colored**; all
+other regions on the slice render as NA gray.
+
+- With **no** rows selected, **all** regions keep their color.
+- **Deselect all** (`deselect-all-btn`) clears the selection.
+- If none of the selected regions happen to be on the current slice (e.g. after
+  moving the slider), gating is skipped for that frame rather than graying the
+  whole slice (an anti-flash guard).
+
+Selection persists as you move through slices, so it's the way to keep a chosen
+set of regions highlighted across the stack.
+
+---
+
+## 5. Applying a flat (single) color
+
+Sometimes you want a publication-style figure where a chosen set of regions is
+filled with **one solid color** rather than a value gradient.
+
+**How to turn it on:**
+
+1. Enable the **Flat** toggle (`static-color-toggle`).
+2. Pick the color in the **Flat** color box (`static-color`).
+3. **Select** the regions you want (tick their checkboxes, §4).
+
+When flat mode is active:
+
+- Selected regions are filled with the **flat color**.
+- All other regions are **NA gray**.
+- The **colorbar is hidden** (the colormap is off).
+
+> **Important:** the flat color only takes effect while a row selection is
+> active. If the Flat toggle is on but nothing is selected, regions fall back to
+> normal **value-based** coloring — a flat fill of *every* region would just be
+> a solid blob.
+
+### Worked examples
+
+**A. Highlight strongly-positive regions in red**
+1. Score → *Rel. abundance*.
+2. Sort by value (click the `value` header) or filter `> 2` to find them.
+3. Tick the rows you want.
+4. Enable **Flat**, set the color to red (`#fa5252`).
+→ The ticked regions are solid red; everything else is gray.
+
+**B. Value gradient with a subset isolated**
+1. Leave **Flat** off.
+2. Tick the regions of interest.
+→ The ticked regions keep their colormap colors; the rest are gray, and the
+colorbar stays visible.
+
+---
+
+## 6. Behavior summary
+
+| Flat toggle | Rows selected? | Result |
+| --- | --- | --- |
+| Off | No | All regions colored by value (colormap + colorbar). |
+| Off | Yes | Selected regions colored by value; others gray; colorbar shown. |
+| On | No | All regions colored by value (flat ignored). |
+| On | Yes | Selected regions = flat color; others gray; colorbar hidden. |
+
+NA / missing-value regions are always gray, in every mode. The table's text
+filter never changes any of the above — it only filters the table list.
+
+---
+
+## 7. Internals (for maintainers)
+
+The render is a clientside callback (`render`) in
+[`render.js`](../plotlybrain/app/assets/render.js), wired in
+[`callbacks.py`](../plotlybrain/app/callbacks.py). Its inputs map to the
+controls as:
+
+| Render arg | Source |
+| --- | --- |
+| `score`, `group` | `score-select`, `group-select` |
+| `stops`, `zmin`, `zmax` | `colorscale-stops-store`, `zmin-input`, `zmax-input` |
+| `highlight` | `results-table.selected_row_ids` |
+| `staticColor`, `useFlat` | `static-color`, `static-color-toggle` |
+
+Key gating variables inside `render`:
+
+- `selActive` / `selected` — the row-selection set and whether it gates (false
+  when empty, or when none of the selected regions are on this slice).
+- `staticMode` — `useFlat && selActive`; the single condition that switches
+  selected regions to the flat color and drops the colorbar.
+
+The static (server-side) export path in
+[`figure.py`](../plotlybrain/app/figure.py) takes the same gating as keyword
+arguments (`selected_rids`, `flat_color`), so exports match the live view. Both
+export buttons read `selected_row_ids` / `static-color` / `static-color-toggle`
+directly (`_selected_flat` in [`callbacks.py`](../plotlybrain/app/callbacks.py)),
+and the selection / flat color apply across all slices.
