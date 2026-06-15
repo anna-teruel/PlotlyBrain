@@ -1,0 +1,29 @@
+import argparse
+import os
+import webbrowser
+from threading import Timer
+
+
+def main() -> None:
+	parser = argparse.ArgumentParser(description="Launch the PlotlyBrain dashboard.")
+	parser.add_argument("--host", default="127.0.0.1")
+	parser.add_argument("--port", type=int, default=8050)
+	parser.add_argument("--debug", action="store_true")
+	args = parser.parse_args()
+
+	from plotlybrain.app.server import create_app
+
+	app = create_app()
+
+	# Open the browser once, after the server has had a moment to start. The
+	# WERKZEUG_RUN_MAIN guard keeps the reloader from opening a new tab on
+	# every hot reload.
+	if not os.environ.get("WERKZEUG_RUN_MAIN"):
+		url = f"http://{args.host}:{args.port}"
+		Timer(1, lambda: webbrowser.open(url)).start()
+
+	app.run(host=args.host, port=args.port, debug=args.debug)
+
+
+if __name__ == "__main__":
+	main()
