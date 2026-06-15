@@ -22,7 +22,7 @@ def main() -> None:
 		url = f"http://{args.host}:{args.port}"
 		Timer(1, lambda: webbrowser.open(url)).start()
 
-	app.run(host=args.host, port=args.port, debug=True)
+	app.run(host=args.host, port=args.port, debug=args.debug)
 
 
 if __name__ == "__main__":
