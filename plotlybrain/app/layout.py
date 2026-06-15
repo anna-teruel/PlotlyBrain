@@ -49,6 +49,9 @@ def _card(children, p="md", **kwargs):
 
 CARD_FILL = {"flex": "1 1 auto", "minHeight": 0, "overflowY": "auto"}
 
+# definite column height = viewport minus app chrome (padding 12+12 + header 38+4)
+COL_HEIGHT = "calc(100vh - 66px)"
+
 
 # left panel : processing pipeline
 def _step1_load():
@@ -401,7 +404,7 @@ def _left_panel():
 			_step3_scores(),
 		],
 		gap="md",
-		style={"height": "100%"},
+		style={"height": COL_HEIGHT},
 	)
 
 
@@ -559,7 +562,7 @@ def _table_panel():
 					sort_action="native",
 					filter_action="native",
 					row_selectable="multi",
-					page_size=12,
+					page_size=18,
 					style_table={"height": "100%", "overflowY": "auto"},
 					style_cell={
 						"fontFamily": "Inter, system-ui, sans-serif",
@@ -584,17 +587,17 @@ def _right_panel():
 	return dmc.Stack(
 		[
 			_brain_graph(),
-			dmc.Grid(
+			dmc.Flex(
 				[
-					dmc.GridCol(_controls_panel(), span=5),
-					dmc.GridCol(_table_panel(), span=7),
+					html.Div(_controls_panel(), style={"flex": "5 1 0", "minWidth": 0}),
+					html.Div(_table_panel(), style={"flex": "7 1 0", "minWidth": 0}),
 				],
-				gutter="md",
-				style={"flex": 1},
+				gap="md",
+				style={"flex": "1 1 auto", "minHeight": 0},
 			),
 		],
 		gap="md",
-		style={"height": "100%"},
+		style={"height": COL_HEIGHT},
 	)
 
 
@@ -629,7 +632,6 @@ def build_layout():
 						dmc.GridCol(_right_panel(), span={"base": 12, "md": 9}),
 					],
 					gutter="md",
-					style={"minHeight": "100vh"},
 				),
 			],
 			id="app-root",
