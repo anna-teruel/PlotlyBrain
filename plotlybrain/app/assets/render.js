@@ -110,7 +110,37 @@ function autoRange(valueMap, vmin, vmax) {
 }
 
 window.dash_clientside.plotlybrain = {
-	render: function (sliderVal, score, group, stops, zmin, zmax, geometry, scores, slices, dark, highlight, staticColor, useFlat) {
+	// Coalesce rapid slider drags to one render per animation frame. Each call
+	// stashes the latest inputs; a single requestAnimationFrame then rebuilds
+	// with the newest values and patches the existing plot via Plotly.react. Fast
+	// scrolling thus skips the intermediate slices it can't keep up with instead
+	// of queueing a full rebuild for every one of them on the main thread.
+	_rafPending: false,
+	_latestArgs: null,
+
+	render: function () {
+		const ns = window.dash_clientside.plotlybrain;
+		const host = document.getElementById("brain-graph");
+		const gd = host && host.querySelector(".js-plotly-plot");
+		if (!gd || !window.Plotly) {
+			// Plot not initialized yet — let Dash create it from the figure prop.
+			return ns.buildFigure.apply(ns, arguments);
+		}
+		ns._latestArgs = arguments;
+		if (!ns._rafPending) {
+			ns._rafPending = true;
+			window.requestAnimationFrame(function () {
+				ns._rafPending = false;
+				const args = ns._latestArgs;
+				ns._latestArgs = null;
+				const fig = ns.buildFigure.apply(ns, args);
+				window.Plotly.react(gd, fig.data, fig.layout);
+			});
+		}
+		return window.dash_clientside.no_update;
+	},
+
+	buildFigure: function (sliderVal, score, group, stops, zmin, zmax, geometry, scores, slices, dark, highlight, staticColor, useFlat) {
 		if (!geometry || !geometry.by_slice || !slices || !slices.length) {
 			return emptyFigure("Build or load slices to begin");
 		}
@@ -234,7 +264,35 @@ window.dash_clientside.plotlybrain = {
 		};
 	},
 
-	table: function (sliderVal, score, group, geometry, scores, slices, dark) {
+	// Debounce the results table so it only rebuilds once the slider settles,
+	// not on every drag tick. The DataTable re-render is DOM-heavy and would
+	// otherwise compete with the figure for the main thread while scrolling. The
+	// trailing rebuild is pushed straight onto the table via set_props, so the
+	// live callback returns no_update for every intermediate value.
+	_tableTimer: null,
+	_tableArgs: null,
+
+	table: function () {
+		const ns = window.dash_clientside.plotlybrain;
+		ns._tableArgs = arguments;
+		if (ns._tableTimer) clearTimeout(ns._tableTimer);
+		ns._tableTimer = setTimeout(function () {
+			ns._tableTimer = null;
+			const out = ns.buildTable.apply(ns, ns._tableArgs);
+			window.dash_clientside.set_props("results-table", {
+				data: out[0],
+				columns: out[1],
+				style_data_conditional: out[2],
+			});
+		}, 150);
+		return [
+			window.dash_clientside.no_update,
+			window.dash_clientside.no_update,
+			window.dash_clientside.no_update,
+		];
+	},
+
+	buildTable: function (sliderVal, score, group, geometry, scores, slices, dark) {
 		const emptyCols = [
 			{ name: "Region ID", id: "rid" },
 			{ name: "Region", id: "name" },

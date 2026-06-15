@@ -591,6 +591,70 @@ def register_callbacks(app) -> None:
 		return not use_flat
 
 	@app.callback(
+		Output("session-store", "data", allow_duplicate=True),
+		Output("geometry-store", "data", allow_duplicate=True),
+		Output("scores-store", "data", allow_duplicate=True),
+		Output("slices-store", "data", allow_duplicate=True),
+		Output("load-cached-status", "children", allow_duplicate=True),
+		Output("build-geo-btn", "disabled", allow_duplicate=True),
+		Output("save-geo-btn", "disabled", allow_duplicate=True),
+		Output("process-data-btn", "disabled", allow_duplicate=True),
+		Output("save-scores-btn", "disabled", allow_duplicate=True),
+		Output("geo-progress", "value", allow_duplicate=True),
+		Output("geo-progress-label", "children", allow_duplicate=True),
+		Output("score-progress", "value", allow_duplicate=True),
+		Output("score-progress-label", "children", allow_duplicate=True),
+		Output("export-progress", "value", allow_duplicate=True),
+		Output("export-progress-label", "children", allow_duplicate=True),
+		Output("export-status", "children", allow_duplicate=True),
+		Output("step1-status", "children", allow_duplicate=True),
+		Output("score-data-dir", "value", allow_duplicate=True),
+		Output("score-sep", "value", allow_duplicate=True),
+		Output("metadata-path", "value", allow_duplicate=True),
+		Output("metadata-sep", "value", allow_duplicate=True),
+		Output("animal-col", "value", allow_duplicate=True),
+		Output("group-col", "value", allow_duplicate=True),
+		Output("ref-group", "value", allow_duplicate=True),
+		Output("export-dir", "value", allow_duplicate=True),
+		Output("export-name", "value", allow_duplicate=True),
+		Input("clear-cache-btn", "n_clicks"),
+		State("session-store", "data"),
+		prevent_initial_call=True,
+	)
+	def clear_cache(n_clicks, session_id):
+		"""Drop the session's cached data from disk and reset the in-browser stores,
+		buttons, progress bars, and text inputs so the app returns to a clean slate."""
+		cache.clear(session_id)
+		return (
+			None,  # session-store
+			None,  # geometry-store
+			None,  # scores-store
+			None,  # slices-store
+			"Cache cleared.",  # load-cached-status
+			True,  # build-geo-btn disabled
+			True,  # save-geo-btn disabled
+			True,  # process-data-btn disabled
+			True,  # save-scores-btn disabled
+			0,  # geo-progress
+			"",  # geo-progress-label
+			0,  # score-progress
+			"",  # score-progress-label
+			0,  # export-progress
+			"",  # export-progress-label
+			"",  # export-status
+			"",  # step1-status
+			"",  # score-data-dir
+			"auto",  # score-sep
+			"",  # metadata-path
+			";",  # metadata-sep
+			"animal",  # animal-col
+			"group",  # group-col
+			"",  # ref-group
+			".",  # export-dir
+			"brain_slice",  # export-name
+		)
+
+	@app.callback(
 		Output("mantine-provider", "forceColorScheme"),
 		Input("color-scheme-toggle", "checked"),
 	)

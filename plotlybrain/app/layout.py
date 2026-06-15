@@ -351,16 +351,28 @@ def _header():
 	return dmc.Group(
 		[
 			dmc.Badge("dashboard", variant="light", color="grape"),
-			dmc.Switch(
-				id="color-scheme-toggle",
-				size="xl",
-				checked=True,
-				onLabel="🌙",
-				offLabel="☀️",
-				styles={
-					"track": {"cursor": "pointer"},
-					"trackLabel": {"fontSize": "1.2rem"},
-				},
+			dmc.Group(
+				[
+					dmc.Button(
+						"Clear",
+						id="clear-cache-btn",
+						variant="light",
+						color="red",
+					),
+					dmc.Switch(
+						id="color-scheme-toggle",
+						size="xl",
+						checked=True,
+						onLabel="🌙",
+						offLabel="☀️",
+						styles={
+							"track": {"cursor": "pointer"},
+							"trackLabel": {"fontSize": "1.2rem"},
+						},
+					),
+				],
+				gap="sm",
+				align="center",
 			),
 		],
 		justify="space-between",
