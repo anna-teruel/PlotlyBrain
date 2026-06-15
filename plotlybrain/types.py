@@ -1,17 +1,17 @@
 from typing import Literal
 
-ScoreName = Literal[
+type ScoreName = Literal[
     "rel_abundance",
     "frequency",
     "density",
 ]
 
-RelAbundanceMethod = Literal[
+type RelAbundanceMethod = Literal[
     "within",
     "reference",
 ]
 
-ReferenceMode = Literal[
+type ReferenceMode = Literal[
     "pooled",
     "group",
 ]
