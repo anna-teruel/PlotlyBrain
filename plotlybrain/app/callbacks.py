@@ -195,11 +195,11 @@ def _slice_filename(name: str, orientation: str | None, coordinate_mm, slice_ind
 	return f"{name}_slice{slice_index}"
 
 
-# Child script for _native_path_dialog. Runs in its own process so tkinter can
-# own the main thread (Dash callbacks run on worker threads). The dialog name
-# (askdirectory / askopenfilename) is passed as argv[1].
+# Child script for the tkinter dialog (Linux/Windows). Runs in its own process
+# so tkinter can own the main thread (Dash callbacks run on worker threads). The
+# dialog name (askdirectory / askopenfilename) is passed as argv[1].
 _DIALOG_SCRIPT = r"""
-import os, sys, tkinter, tkinter.filedialog
+import sys, tkinter, tkinter.filedialog
 
 root = tkinter.Tk()
 root.withdraw()
@@ -208,26 +208,47 @@ root.lift()
 root.focus_force()
 root.update_idletasks()
 
-if sys.platform == "darwin":
-	# The subprocess is not the foreground app, so its dialog would open hidden
-	# behind the browser. Activate this process by pid to bring it to the front.
-	os.system(
-		"osascript -e 'tell application \"System Events\" to set frontmost of "
-		"(first process whose unix id is %d) to true' 2>/dev/null" % os.getpid()
-	)
-
 picker = getattr(tkinter.filedialog, sys.argv[1])
 sys.stdout.write(picker(parent=root) or "")
 """
 
 
+def _macos_path_dialog(directory: bool) -> str | None:
+	"""macOS path picker via AppleScript's built-in chooser.
+
+	A CLI Python subprocess is a background process on macOS and cannot become
+	the foreground app, so a Tk dialog would open hidden behind the browser.
+	AppleScript's ``choose file``/``choose folder`` runs inside the osascript
+	runtime (a real foreground app), so it reliably comes to the front, and it
+	needs no Tk build or extra permissions.
+	"""
+	chooser = "choose folder" if directory else "choose file"
+	prompt = "Select a folder" if directory else "Select a file"
+	script = f'POSIX path of ({chooser} with prompt "{prompt}")'
+	result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+	if result.returncode != 0:
+		# Cancelling raises AppleScript error -128 ("User canceled"); that's the
+		# normal no-selection path. Surface anything else.
+		if "-128" not in result.stderr and "User canceled" not in result.stderr:
+			print(
+				f"plotlybrain: native file dialog failed.\n{result.stderr.strip()}",
+				file=sys.stderr,
+			)
+		return None
+	return result.stdout.strip() or None
+
+
 def _native_path_dialog(directory: bool) -> str | None:
 	"""Open a native OS dialog and return the chosen path, or None if cancelled.
 
-	The dialog runs in a separate process: tkinter must own the main thread,
-	but Dash callbacks run on worker threads. Server-side only, so this works
-	while the app is served locally (server and user on the same machine).
+	Server-side only, so this works while the app is served locally (server and
+	user on the same machine). macOS uses AppleScript (see
+	``_macos_path_dialog``); other platforms run a short tkinter script in a
+	subprocess (tkinter must own the main thread, Dash callbacks do not).
 	"""
+	if sys.platform == "darwin":
+		return _macos_path_dialog(directory)
+
 	picker = "askdirectory" if directory else "askopenfilename"
 	result = subprocess.run(
 		[sys.executable, "-c", _DIALOG_SCRIPT, picker],
@@ -235,8 +256,9 @@ def _native_path_dialog(directory: bool) -> str | None:
 		text=True,
 	)
 	if result.returncode != 0:
-		# Most often: tkinter isn't available (macOS Homebrew/pyenv Python, or
-		# Linux missing python3-tk). Surface it instead of silently doing nothing.
+		# Most often: tkinter isn't available (Linux missing python3-tk, or a
+		# pyenv/system Python built without Tk). Surface it instead of silently
+		# doing nothing.
 		print(
 			"plotlybrain: native file dialog failed. Is tkinter installed?\n"
 			f"{result.stderr.strip()}",
