@@ -1,13 +1,3 @@
-"""
-Dash application factory for the PlotlyBrain dashboard.
-
-Wires Dash Mantine Components, the local ``assets/`` folder, and a
-Diskcache-backed background-callback manager (needed so the long-running
-processing steps can report progress to ``dmc.Progress`` bars).
-"""
-
-from __future__ import annotations
-
 import os
 import sys
 
