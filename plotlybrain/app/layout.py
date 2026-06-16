@@ -625,6 +625,8 @@ def build_layout():
 		children=html.Div(
 			[
 				*_stores(),
+				dmc.NotificationProvider(position="top-center", zIndex=2000),
+				html.Div(id="notifications-container"),
 				_header(),
 				dmc.Grid(
 					[

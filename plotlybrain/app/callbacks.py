@@ -6,13 +6,66 @@ import math
 import os
 import subprocess
 import sys
+import uuid
 
+import dash_mantine_components as dmc
 import numpy as np
 import pandas as pd
-from dash import ClientsideFunction, Input, Output, State, dcc, no_update
+from dash import ClientsideFunction, Input, Output, State, dcc, no_update, set_props
 
 import plotlybrain
 from plotlybrain.app import cache, figure
+
+
+# Toast levels -> (Mantine color used for the border + icon box, default title,
+# icon glyph). Dual-coded (color *and* glyph) so the level reads without relying
+# on color alone.
+_NOTIFY = {
+	"success": ("green", "Success", "✓"),
+	"info": ("teal", "Info", "ℹ"),
+	"warning": ("yellow", "Warning", "⚠"),
+	"error": ("red", "Error", "✕"),
+}
+
+
+def _notify(message: str, level: str = "info", title: str | None = None, autoClose: int = 4000) -> None:
+	"""Push a toast into the notifications container with a level-colored border.
+
+	Levels map to the border color the user expects: success=green, info=teal,
+	warning=yellow, error=red, each paired with a glyph icon. Errors are sticky
+	(``autoClose=False``) so the one thing the user must not miss can't vanish
+	before it's read; everything is dismissible via the close button. Emitted
+	through ``set_props`` so any callback — including the background processing
+	ones — can raise a toast without wiring an extra Output into its signature.
+	"""
+	color, default_title, glyph = _NOTIFY.get(level, _NOTIFY["info"])
+	set_props(
+		"notifications-container",
+		{
+			"children": dmc.Notification(
+				id=str(uuid.uuid4()),
+				action="show",
+				color=color,
+				title=title or default_title,
+				message=message,
+				icon=dmc.Text(glyph, c="white", fw=700, fz="lg"),
+				autoClose=False if level == "error" else autoClose,
+				withCloseButton=True,
+				withBorder=True,
+				styles={"root": {"border": f"1px solid var(--mantine-color-{color}-6)"}},
+			)
+		},
+	)
+
+
+def _status(message: str, color: str):
+	"""Inline status text colored by outcome (green=done, red=failed).
+
+	Returned as a status component's ``children`` so completion/failure recolors
+	the existing inline text in place — complementing the toast — without adding
+	a separate Output for the color. ``inherit`` keeps the parent's font size.
+	"""
+	return dmc.Text(message, c=color, span=True, inherit=True)
 
 
 def _df_records(df: pd.DataFrame) -> list[dict]:
@@ -228,13 +281,10 @@ def _macos_path_dialog(directory: bool) -> str | None:
 	result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
 	if result.returncode != 0:
 		# Cancelling raises AppleScript error -128 ("User canceled"); that's the
-		# normal no-selection path. Surface anything else.
-		if "-128" not in result.stderr and "User canceled" not in result.stderr:
-			print(
-				f"plotlybrain: native file dialog failed.\n{result.stderr.strip()}",
-				file=sys.stderr,
-			)
-		return None
+		# normal no-selection path. Anything else is a real failure worth raising.
+		if "-128" in result.stderr or "User canceled" in result.stderr:
+			return None
+		raise RuntimeError(result.stderr.strip() or "AppleScript file dialog failed")
 	return result.stdout.strip() or None
 
 
@@ -257,14 +307,11 @@ def _native_path_dialog(directory: bool) -> str | None:
 	)
 	if result.returncode != 0:
 		# Most often: tkinter isn't available (Linux missing python3-tk, or a
-		# pyenv/system Python built without Tk). Surface it instead of silently
-		# doing nothing.
-		print(
-			"plotlybrain: native file dialog failed. Is tkinter installed?\n"
-			f"{result.stderr.strip()}",
-			file=sys.stderr,
+		# pyenv/system Python built without Tk). Raise so the caller can surface
+		# it as a toast instead of the click silently doing nothing.
+		raise RuntimeError(
+			f"native file dialog failed (is tkinter installed?)\n{result.stderr.strip()}"
 		)
-		return None
 	return result.stdout.strip() or None
 
 
@@ -277,6 +324,20 @@ def _selected_flat(selected_ids, static_color, use_flat):
 	return selected, flat
 
 
+def _browse_path(directory: bool):
+	"""Open the native picker for a Browse button, toasting on a real failure.
+
+	Returns the chosen path, or ``no_update`` when the dialog was cancelled (no
+	toast) or failed (an error toast is raised so the click isn't a silent no-op).
+	"""
+	try:
+		path = _native_path_dialog(directory=directory)
+	except Exception as exc:
+		_notify(str(exc), "error", title="File dialog failed")
+		return no_update
+	return path or no_update
+
+
 def register_callbacks(app) -> None:
 
 	@app.callback(
@@ -285,7 +346,7 @@ def register_callbacks(app) -> None:
 		prevent_initial_call=True,
 	)
 	def browse_data_dir(n_clicks):
-		return _native_path_dialog(directory=True) or no_update
+		return _browse_path(directory=True)
 
 	@app.callback(
 		Output("metadata-path", "value"),
@@ -293,7 +354,7 @@ def register_callbacks(app) -> None:
 		prevent_initial_call=True,
 	)
 	def browse_metadata(n_clicks):
-		return _native_path_dialog(directory=False) or no_update
+		return _browse_path(directory=False)
 
 	@app.callback(
 		Output("export-dir", "value"),
@@ -301,7 +362,7 @@ def register_callbacks(app) -> None:
 		prevent_initial_call=True,
 	)
 	def browse_export_dir(n_clicks):
-		return _native_path_dialog(directory=True) or no_update
+		return _browse_path(directory=True)
 
 	@app.callback(
 		Output("session-store", "data"),
@@ -318,14 +379,18 @@ def register_callbacks(app) -> None:
 	)
 	def load_raw(n_clicks, resolution):
 		res = int(resolution)
-		session_id = cache.new_session()
-		volume = plotlybrain.load_annotation_volume(resolution_um=res)
-		structure_df = plotlybrain.load_structure_graph()
+		try:
+			session_id = cache.new_session()
+			volume = plotlybrain.load_annotation_volume(resolution_um=res)
+			structure_df = plotlybrain.load_structure_graph()
+		except Exception as exc:  # download / disk / atlas errors
+			_notify(f"Could not load atlas: {exc}", "error")
+			return no_update, _status("Atlas load failed.", "red"), no_update
 		cache.put(session_id, "volume", volume)
 		cache.put(session_id, "structure_df", structure_df)
 		cache.put(session_id, "resolution_um", res)
 		status = f"Loaded atlas at {res} µm — volume {volume.shape}."
-		return session_id, status, False
+		return session_id, _status(status, "green"), False
 
 	@app.callback(
 		Output("geometry-store", "data"),
@@ -366,38 +431,55 @@ def register_callbacks(app) -> None:
 		structure_df = cache.get(session_id, "structure_df")
 		if volume is None or structure_df is None:
 			set_progress((0, "Load raw data first (step 1)."))
+			_notify("Load the atlas first (step 1).", "warning")
 			return no_update, no_update, no_update, no_update, no_update, no_update
 
 		res = int(cache.get(session_id, "resolution_um", 25))
 		step = float(step_mm) if step_mm else None
-		indices = plotlybrain.range_mm_to_slice_indices(
-			start_mm=float(start_mm),
-			end_mm=float(end_mm),
-			step_mm=step,
-			orientation=orientation,
-			resolution_um=res,
-		)
+		try:
+			indices = plotlybrain.range_mm_to_slice_indices(
+				start_mm=float(start_mm),
+				end_mm=float(end_mm),
+				step_mm=step,
+				orientation=orientation,
+				resolution_um=res,
+			)
+		except Exception as exc:
+			set_progress((0, _status(f"Invalid slice range: {exc}", "red")))
+			_notify(f"Invalid slice range: {exc}", "error")
+			return no_update, no_update, no_update, no_update, no_update, no_update
+
 		n = len(indices)
+		if n == 0:
+			set_progress((0, "That range produced no slices."))
+			_notify("That start/end/step range produced no slices.", "warning")
+			return no_update, no_update, no_update, no_update, no_update, no_update
 
 		def _report(i, total, idx):
 			set_progress((int(100 * i / total), f"Slice {i}/{total} (index {idx})"))
 
-		geometry, slices = figure.build_slice_geometry(
-			volume=volume,
-			structure_df=structure_df,
-			orientation=orientation,
-			resolution_um=res,
-			slice_indices=indices,
-			min_area_px=float(min_area_px),
-			simplify_px=float(simplify_px),
-			smooth_sigma=float(smooth_sigma),
-			polygon_mode=polygon_mode,
-			progress=_report,
-		)
+		try:
+			geometry, slices = figure.build_slice_geometry(
+				volume=volume,
+				structure_df=structure_df,
+				orientation=orientation,
+				resolution_um=res,
+				slice_indices=indices,
+				min_area_px=float(min_area_px),
+				simplify_px=float(simplify_px),
+				smooth_sigma=float(smooth_sigma),
+				polygon_mode=polygon_mode,
+				progress=_report,
+			)
+		except Exception as exc:
+			set_progress((0, _status(f"Could not build slices: {exc}", "red")))
+			_notify(f"Could not build slices: {exc}", "error")
+			return no_update, no_update, no_update, no_update, no_update, no_update
+
 		cache.put(session_id, "geometry", geometry)
 
 		smin, smax, sval, marks = _slider_config(slices)
-		set_progress((100, f"Built {n} slice(s)."))
+		set_progress((100, _status(f"Built {n} slice(s).", "green")))
 		return geometry, slices, smin, smax, sval, marks
 
 	@app.callback(
@@ -432,11 +514,13 @@ def register_callbacks(app) -> None:
 	):
 		if not data_dir or not os.path.isdir(data_dir):
 			set_progress((0, "Provide a valid QUINT data folder."))
+			_notify("Provide a valid QUINT data folder.", "warning")
 			return no_update
 
 		files = glob.glob(os.path.join(data_dir, "*_RefAtlasRegions.csv"))
 		if not files:
 			set_progress((0, "No *_RefAtlasRegions.csv files in that folder."))
+			_notify("No *_RefAtlasRegions.csv files in that folder.", "warning")
 			return no_update
 		use_sep = _resolve_sep(sep, data_dir)
 		set_progress((15, f"Loading {len(files)} QUINT file(s) (sep={use_sep!r})…"))
@@ -455,12 +539,13 @@ def register_callbacks(app) -> None:
 				reference_group=_parse_cols(ref_group),
 			)
 		except Exception as exc:  # surface a clean message instead of a traceback
-			set_progress((0, f"Could not compute scores: {exc}"))
+			set_progress((0, _status(f"Could not compute scores: {exc}", "red")))
+			_notify(f"Could not compute scores: {exc}", "error")
 			return no_update
 
 		set_progress((80, "Assembling score tables…"))
 		store = _scores_to_store(result)
-		set_progress((100, f"Computed scores for {len(store)} group(s)."))
+		set_progress((100, _status(f"Computed scores for {len(store)} group(s).", "green")))
 		return store
 
 	@app.callback(
@@ -562,10 +647,14 @@ def register_callbacks(app) -> None:
 		try:
 			gj = json.loads(_decode_upload(contents).decode("utf-8"))
 		except Exception as exc:
-			return (no_update,) * 6 + (f"Could not read GeoJSON: {exc}", no_update)
+			_notify(f"Could not read GeoJSON: {exc}", "error")
+			return (no_update,) * 6 + (_status(f"Could not read GeoJSON: {exc}", "red"), no_update)
 		if not session_id:
 			session_id = cache.new_session()
 		geometry, slices = figure.geojson_to_payload(gj)
+		if not slices:
+			_notify("No slices found in that GeoJSON.", "warning")
+			return (no_update,) * 6 + ("No slices found in that GeoJSON.", no_update)
 		cache.put(session_id, "geometry", geometry)
 		smin, smax, sval, marks = _slider_config(slices)
 		return (
@@ -575,7 +664,7 @@ def register_callbacks(app) -> None:
 			smax,
 			sval,
 			marks,
-			f"Loaded {len(slices)} slice(s).",
+			_status(f"Loaded {len(slices)} slice(s).", "green"),
 			session_id,
 		)
 
@@ -592,10 +681,11 @@ def register_callbacks(app) -> None:
 		try:
 			df = pd.read_csv(io.BytesIO(_decode_upload(contents)))
 		except Exception as exc:
-			return no_update, f"Could not read scores CSV: {exc}"
+			_notify(f"Could not read scores CSV: {exc}", "error")
+			return no_update, _status(f"Could not read scores CSV: {exc}", "red")
 		store = _scores_to_store(df)
 		n_groups = sum(1 for k in store if k != COMBINED_GROUP_LABEL)
-		return store, f"Loaded scores: {len(df)} rows, {n_groups} group(s)."
+		return store, _status(f"Loaded scores: {len(df)} rows, {n_groups} group(s).", "green")
 
 	@app.callback(
 		Output("group-select", "data"),
@@ -681,6 +771,7 @@ def register_callbacks(app) -> None:
 		"""Drop the session's cached data from disk and reset the in-browser stores,
 		buttons, progress bars, and text inputs so the app returns to a clean slate."""
 		cache.clear(session_id)
+		_notify("Cache cleared.", "info")
 		return (
 			None,  # session-store
 			None,  # geometry-store
@@ -805,8 +896,10 @@ def register_callbacks(app) -> None:
 	):
 		geometry = cache.get(session_id, "geometry")
 		if geometry is None:
+			_notify("Build or load slices first.", "warning")
 			return "No geometry in memory — build or load slices first."
 		if not scores or not slices:
+			_notify("Nothing to export yet.", "warning")
 			return "Nothing to export yet."
 
 		group = group if group in scores else next(iter(scores))
@@ -817,22 +910,27 @@ def register_callbacks(app) -> None:
 		# color carries over. The table's text filter is browse-only.
 		selected, flat = _selected_flat(selected_ids, static_color, use_flat)
 
-		fig = figure.build_export_figure(
-			geometry_payload=geometry,
-			score_records=records,
-			slice_index=slice_index,
-			score=score,
-			colorscale=colorscale,
-			zmin=zmin,
-			zmax=zmax,
-			title=f"{score} — slice {slice_index}",
-			selected_rids=selected,
-			flat_color=flat,
-		)
-		path = plotlybrain.save_figure(
-			fig, out_dir=out_dir or ".", filename=name or "brain_slice", extension=fmt or "svg"
-		)
-		return f"Saved: {path}"
+		try:
+			fig = figure.build_export_figure(
+				geometry_payload=geometry,
+				score_records=records,
+				slice_index=slice_index,
+				score=score,
+				colorscale=colorscale,
+				zmin=zmin,
+				zmax=zmax,
+				title=f"{score} — slice {slice_index}",
+				selected_rids=selected,
+				flat_color=flat,
+			)
+			path = plotlybrain.save_figure(
+				fig, out_dir=out_dir or ".", filename=name or "brain_slice", extension=fmt or "svg"
+			)
+		except Exception as exc:  # bad path, missing kaleido, etc.
+			_notify(f"Export failed: {exc}", "error")
+			return _status(f"Export failed: {exc}", "red")
+		_notify(f"Saved: {path}", "success")
+		return _status(f"Saved: {path}", "green")
 
 	@app.callback(
 		Output("export-status", "children", allow_duplicate=True),
@@ -879,8 +977,10 @@ def register_callbacks(app) -> None:
 	):
 		geometry = cache.get(session_id, "geometry")
 		if geometry is None:
+			_notify("Build or load slices first.", "warning")
 			return "No geometry in memory — build or load slices first."
 		if not scores or not slices:
+			_notify("Nothing to export yet.", "warning")
 			return "Nothing to export yet."
 
 		group = group if group in scores else next(iter(scores))
@@ -893,30 +993,36 @@ def register_callbacks(app) -> None:
 		selected, flat = _selected_flat(selected_ids, static_color, use_flat)
 
 		n = len(slices)
-		for i, meta in enumerate(slices, start=1):
-			slice_index = int(meta["slice_index"])
-			set_progress((int(i / n * 100), f"Exporting slice {i}/{n}…"))
-			fig = figure.build_export_figure(
-				geometry_payload=geometry,
-				score_records=records,
-				slice_index=slice_index,
-				score=score,
-				colorscale=colorscale,
-				zmin=zmin,
-				zmax=zmax,
-				title=f"{score} — slice {slice_index}",
-				selected_rids=selected,
-				flat_color=flat,
-			)
-			filename = _slice_filename(
-				name or "brain_slice", orientation, meta.get("coordinate_mm"), slice_index
-			)
-			plotlybrain.save_figure(
-				fig, out_dir=out_dir or ".", filename=filename, extension=fmt or "svg"
-			)
+		try:
+			for i, meta in enumerate(slices, start=1):
+				slice_index = int(meta["slice_index"])
+				set_progress((int(i / n * 100), f"Exporting slice {i}/{n}…"))
+				fig = figure.build_export_figure(
+					geometry_payload=geometry,
+					score_records=records,
+					slice_index=slice_index,
+					score=score,
+					colorscale=colorscale,
+					zmin=zmin,
+					zmax=zmax,
+					title=f"{score} — slice {slice_index}",
+					selected_rids=selected,
+					flat_color=flat,
+				)
+				filename = _slice_filename(
+					name or "brain_slice", orientation, meta.get("coordinate_mm"), slice_index
+				)
+				plotlybrain.save_figure(
+					fig, out_dir=out_dir or ".", filename=filename, extension=fmt or "svg"
+				)
+		except Exception as exc:  # bad path, missing kaleido, etc.
+			set_progress((0, _status(f"Export failed: {exc}", "red")))
+			_notify(f"Export failed: {exc}", "error")
+			return _status(f"Export failed: {exc}", "red")
 
 		set_progress((100, ""))
-		return f"Saved {n} slice(s) to {out_dir or '.'}"
+		_notify(f"Saved {n} slice(s) to {out_dir or '.'}", "success")
+		return _status(f"Saved {n} slice(s) to {out_dir or '.'}", "green")
 
 	app.clientside_callback(
 		ClientsideFunction(namespace="plotlybrain", function_name="render"),
