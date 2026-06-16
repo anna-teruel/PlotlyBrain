@@ -413,7 +413,7 @@ def _brain_graph():
 	return _card(
 		dcc.Graph(
 			id="brain-graph",
-			style={"height": "46vh"},
+			style={"height": "100%", "width": "100%"},
 			config={
 				"displaylogo": False,
 				"scrollZoom": True,

@@ -242,8 +242,8 @@ window.dash_clientside.plotlybrain = {
 		let xaxis;
 		let yaxis;
 		if (dims && dims.w && dims.h) {
-			xaxis = { visible: false, range: [0, dims.w], constrain: "domain" };
-			yaxis = { visible: false, range: [dims.h, 0], scaleanchor: "x", constrain: "domain" };
+			xaxis = { visible: false, range: [0, dims.w], constrain: "range" };
+			yaxis = { visible: false, range: [dims.h, 0], scaleanchor: "x", constrain: "range" };
 		} else {
 			xaxis = { visible: false };
 			yaxis = { visible: false, scaleanchor: "x" };
