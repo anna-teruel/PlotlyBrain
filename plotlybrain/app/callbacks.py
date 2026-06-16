@@ -195,6 +195,32 @@ def _slice_filename(name: str, orientation: str | None, coordinate_mm, slice_ind
 	return f"{name}_slice{slice_index}"
 
 
+# Child script for _native_path_dialog. Runs in its own process so tkinter can
+# own the main thread (Dash callbacks run on worker threads). The dialog name
+# (askdirectory / askopenfilename) is passed as argv[1].
+_DIALOG_SCRIPT = r"""
+import os, sys, tkinter, tkinter.filedialog
+
+root = tkinter.Tk()
+root.withdraw()
+root.wm_attributes("-topmost", True)
+root.lift()
+root.focus_force()
+root.update_idletasks()
+
+if sys.platform == "darwin":
+	# The subprocess is not the foreground app, so its dialog would open hidden
+	# behind the browser. Activate this process by pid to bring it to the front.
+	os.system(
+		"osascript -e 'tell application \"System Events\" to set frontmost of "
+		"(first process whose unix id is %d) to true' 2>/dev/null" % os.getpid()
+	)
+
+picker = getattr(tkinter.filedialog, sys.argv[1])
+sys.stdout.write(picker(parent=root) or "")
+"""
+
+
 def _native_path_dialog(directory: bool) -> str | None:
 	"""Open a native OS dialog and return the chosen path, or None if cancelled.
 
@@ -203,12 +229,20 @@ def _native_path_dialog(directory: bool) -> str | None:
 	while the app is served locally (server and user on the same machine).
 	"""
 	picker = "askdirectory" if directory else "askopenfilename"
-	script = (
-		"import tkinter, tkinter.filedialog\n"
-		"r = tkinter.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
-		f"print(tkinter.filedialog.{picker}())\n"
+	result = subprocess.run(
+		[sys.executable, "-c", _DIALOG_SCRIPT, picker],
+		capture_output=True,
+		text=True,
 	)
-	result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+	if result.returncode != 0:
+		# Most often: tkinter isn't available (macOS Homebrew/pyenv Python, or
+		# Linux missing python3-tk). Surface it instead of silently doing nothing.
+		print(
+			"plotlybrain: native file dialog failed. Is tkinter installed?\n"
+			f"{result.stderr.strip()}",
+			file=sys.stderr,
+		)
+		return None
 	return result.stdout.strip() or None
 
 
