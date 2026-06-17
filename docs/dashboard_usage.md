@@ -28,13 +28,18 @@ plotlybrain-app --host 0.0.0.0 --port 8060
 
 ## Layout at a glance
 
-- **Header** (top of the left column) — logo and a **light/dark toggle**.
-- **Left column — the processing pipeline**, three numbered steps:
+- **Header** (spanning the top) — a *dashboard* badge, a **Clear** button that
+  resets the session (see [Clearing the session](#clearing-the-session-reset)),
+  and a **light/dark toggle**.
+- **Left column — the processing pipeline**, with the logo and three numbered
+  steps:
   1. Load atlas (or load previously processed files)
   2. Build slice GeoJSONs
   3. Compute region scores
-- **Right column — the view**: the brain figure with a slice slider, the
-  coloring/export controls, and the per-slice region table.
+- **Right column — the view**: a large brain figure with the **slice slider
+  directly beneath it**, and — in a row below — the coloring/export controls and
+  the per-slice region table. On shorter screens the figure stays large and the
+  controls/table below it scroll, rather than the figure shrinking.
 
 Each step unlocks the next: the brain only renders once **geometry** (slices)
 and **scores** exist. You produce those either by running steps 1→3, or by
@@ -82,9 +87,9 @@ Defines which slices to cut and turns the atlas volume into polygon geometry.
 5. **Save** (optional) — downloads the geometry as `brain_slices.geojson` so you
    can reload it later via Step 1's "Load processed files" tab.
 
-Once slices exist, the brain figure appears on the right and the **slice
-slider** is populated (the label below shows the slice index and its mm
-coordinate).
+Once slices exist, the brain figure appears on the right and the **slice slider
+beneath it** is populated (the label under the slider shows the slice index and
+its mm coordinate).
 
 ---
 
@@ -124,8 +129,11 @@ Loads your QUINT output and computes per-region metrics.
 
 Once geometry **and** scores are present, the brain is colored region-by-region.
 
-- **Slice slider** — drag to move through slices; the label shows the slice
-  index, mm coordinate, and position (e.g. `3/12`).
+The figure sits at the top of the column with the slice slider directly beneath
+it; the coloring controls and the region table sit side by side in a row below.
+
+- **Slice slider** (under the figure) — drag to move through slices; the label
+  below it shows the slice index, mm coordinate, and position (e.g. `3/12`).
 - **Score** — choose *Rel. abundance*, *Frequency*, or *Density*. Switching it
   resets `zmin`/`zmax` to that score's sensible default range.
 - **Group** — choose which group's scores to display (an `All (mean)` entry is
@@ -176,6 +184,43 @@ change the export. See
 1. Step 1 → "Load processed files" → upload your `brain_slices.geojson` and
    `region_scores.csv`.
 2. Explore and export — no atlas processing needed.
+
+---
+
+## Notifications & inline status
+
+The app reports what's happening in two complementary ways:
+
+- **Toasts** — pop-up notifications at the **top-center** of the window, with a
+  colored border (and a matching icon, so the type reads without relying on
+  color alone):
+  - **green** — success (e.g. an export finished)
+  - **teal** — information
+  - **yellow** — warning (e.g. a missing folder or an empty slice range)
+  - **red** — error (something failed)
+
+  Error toasts are **sticky** — they stay until you dismiss them with the × —
+  while the others fade on their own; any toast can be closed early. Toasts are
+  reserved for the things you might otherwise miss: errors, warnings, and
+  "invisible" successes such as a completed export or a cleared cache.
+- **Inline status text** — each pipeline step shows a short status line beneath
+  its button (e.g. the loaded volume shape, or `Built 12 slice(s).`). It turns
+  **green** on success and **red** on failure, so a step's result is visible in
+  place without watching for a toast.
+
+---
+
+## Clearing the session (reset)
+
+The **Clear** button in the header wipes the current session: it deletes the
+session's cached data from disk and resets the in-browser state — the figure and
+slider, all of the stores, every step's buttons and progress bars, and the input
+fields — back to a clean slate (an info toast confirms `Cache cleared.`). Use it
+to start over without restarting the app.
+
+It only clears the working session; it does **not** delete any files you already
+exported or saved (`brain_slices.geojson`, `region_scores.csv`, exported
+figures).
 
 ---
 

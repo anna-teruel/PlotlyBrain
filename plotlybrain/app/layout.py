@@ -56,66 +56,76 @@ COL_HEIGHT = "calc(100vh - 66px)"
 # left panel : processing pipeline
 def _step1_load():
 	return _card(
-		dmc.Tabs(
+		dmc.Stack(
 			[
-				dmc.TabsList(
+				_section_title("1", "Load atlas"),
+				dmc.Tabs(
 					[
-						dmc.TabsTab("Load atlas", value="atlas"),
-						dmc.TabsTab("Load processed files", value="processed"),
-					]
-				),
-				dmc.TabsPanel(
-					dmc.Stack(
-						[
-							dmc.Select(
-								id="resolution-select",
-								label="Resolution",
-								data=RESOLUTIONS,
-								value="25",
-								allowDeselect=False,
-							),
-							dmc.Button("Load atlas", id="load-raw-btn", fullWidth=True),
-							dmc.Group(
+						dmc.TabsList(
+							[
+								dmc.TabsTab("Load atlas", value="atlas"),
+								dmc.TabsTab("Load processed files", value="processed"),
+							]
+						),
+						dmc.TabsPanel(
+							dmc.Stack(
 								[
-									dmc.Loader(
-										id="step1-loader", size="sm", style={"display": "none"}
+									dmc.Select(
+										id="resolution-select",
+										label="Resolution",
+										data=RESOLUTIONS,
+										value="25",
+										allowDeselect=False,
 									),
-									dmc.Text(id="step1-status", size="sm", c="dimmed"),
+									dmc.Button("Load atlas", id="load-raw-btn", fullWidth=True),
+									dmc.Group(
+										[
+											dmc.Loader(
+												id="step1-loader",
+												size="sm",
+												style={"display": "none"},
+											),
+											dmc.Text(id="step1-status", size="sm", c="dimmed"),
+										],
+										gap="xs",
+									),
 								],
-								gap="xs",
+								gap="sm",
+								pt="sm",
 							),
-						],
-						gap="sm",
-						pt="sm",
-					),
+							value="atlas",
+						),
+						dmc.TabsPanel(
+							dmc.Stack(
+								[
+									dcc.Upload(
+										id="upload-geojson",
+										accept=".geojson,.json",
+										multiple=False,
+										children=dmc.Button(
+											"Load GeoJSON", variant="light", fullWidth=True
+										),
+									),
+									dcc.Upload(
+										id="upload-scores",
+										accept=".csv",
+										multiple=False,
+										children=dmc.Button(
+											"Load scores", variant="light", fullWidth=True
+										),
+									),
+									dmc.Text(id="load-cached-status", size="xs", c="dimmed"),
+								],
+								gap="sm",
+								pt="sm",
+							),
+							value="processed",
+						),
+					],
 					value="atlas",
 				),
-				dmc.TabsPanel(
-					dmc.Stack(
-						[
-							dcc.Upload(
-								id="upload-geojson",
-								accept=".geojson,.json",
-								multiple=False,
-								children=dmc.Button(
-									"Load GeoJSON", variant="light", fullWidth=True
-								),
-							),
-							dcc.Upload(
-								id="upload-scores",
-								accept=".csv",
-								multiple=False,
-								children=dmc.Button("Load scores", variant="light", fullWidth=True),
-							),
-							dmc.Text(id="load-cached-status", size="xs", c="dimmed"),
-						],
-						gap="sm",
-						pt="sm",
-					),
-					value="processed",
-				),
 			],
-			value="atlas",
+			gap="sm",
 		),
 		style=CARD_FILL,
 	)
@@ -346,7 +356,7 @@ def _step3_scores():
 			],
 			gap="sm",
 		),
-		style=CARD_FILL,
+		style={"flex": "1 1 auto", "minHeight": 320, "maxHeight": 403, "overflowY": "auto"},
 	)
 
 
@@ -411,25 +421,22 @@ def _left_panel():
 # right panel: figure, controls, table
 def _brain_graph():
 	return _card(
-		dcc.Graph(
-			id="brain-graph",
-			style={"height": "46vh"},
-			config={
-				"displaylogo": False,
-				"scrollZoom": True,
-				"modeBarButtonsToRemove": ["select2d", "lasso2d"],
-			},
-		),
-		p="xs",
-		style={"height": "50vh"},
-	)
-
-
-def _controls_panel():
-	return _card(
 		dmc.Stack(
 			[
-				dmc.Text("Slice", fw=600, size="sm"),
+				# The figure takes all remaining height (minHeight:0 lets it shrink
+				# within the flex column); the slice slider sits pinned at the bottom.
+				html.Div(
+					dcc.Graph(
+						id="brain-graph",
+						style={"height": "100%", "width": "100%"},
+						config={
+							"displaylogo": False,
+							"scrollZoom": True,
+							"modeBarButtonsToRemove": ["select2d", "lasso2d"],
+						},
+					),
+					style={"flex": "1 1 auto", "minHeight": 0},
+				),
 				html.Div(
 					dcc.Slider(
 						id="slice-slider",
@@ -444,8 +451,23 @@ def _controls_panel():
 					),
 					id="slice-slider-wrap",
 				),
-				dmc.Text(id="slice-label", size="xs", c="dimmed"),
-				dmc.Divider(),
+				dmc.Text(id="slice-label", size="xs", c="dimmed", ta="center"),
+			],
+			gap="xs",
+			style={"height": "100%"},
+		),
+		p="xs",
+		# The graph takes ~70% of the column so the lower Flex below it roughly lines
+		# up with the left column's step-3 card. A px floor (not 58vh) avoids forcing
+		# overflow; it still drives the column's scroll fallback on very short screens.
+		style={"flex": "1 1 70%", "minHeight": "320px"},
+	)
+
+
+def _controls_panel():
+	return _card(
+		dmc.Stack(
+			[
 				dmc.Text("Score", fw=600, size="sm"),
 				dmc.SegmentedControl(
 					id="score-select", data=SCORES, value="rel_abundance", fullWidth=True
@@ -529,7 +551,7 @@ def _controls_panel():
 			],
 			gap="sm",
 		),
-		style={"height": "100%"},
+		style={"height": "100%", "overflowY": "auto"},
 	)
 
 
@@ -555,25 +577,32 @@ def _table_panel():
 					align="center",
 					wrap="nowrap",
 				),
-				dash_table.DataTable(
-					id="results-table",
-					columns=[],
-					data=[],
-					sort_action="native",
-					filter_action="native",
-					row_selectable="multi",
-					page_size=18,
-					style_table={"height": "100%", "overflowY": "auto"},
-					style_cell={
-						"fontFamily": "Inter, system-ui, sans-serif",
-						"fontSize": "12px",
-						"padding": "4px 8px",
-						"textAlign": "left",
-						"maxWidth": 160,
-						"overflow": "hidden",
-						"textOverflow": "ellipsis",
-					},
-					style_header={"fontWeight": "600", "backgroundColor": "#f1f3f5"},
+				# The table fills the remaining card height and scrolls. The scroll
+				# lives on this wrapper (a flex child with minHeight:0 so it can
+				# shrink below content size) — a percentage height on the table's
+				# own container collapses to content height and never scrolls.
+				html.Div(
+					dash_table.DataTable(
+						id="results-table",
+						columns=[],
+						data=[],
+						sort_action="native",
+						filter_action="native",
+						row_selectable="multi",
+						page_size=11,
+						style_table={"overflowX": "auto"},
+						style_cell={
+							"fontFamily": "Inter, system-ui, sans-serif",
+							"fontSize": "12px",
+							"padding": "4px 8px",
+							"textAlign": "left",
+							"maxWidth": 160,
+							"overflow": "hidden",
+							"textOverflow": "ellipsis",
+						},
+						style_header={"fontWeight": "600", "backgroundColor": "#f1f3f5"},
+					),
+					style={"flex": "1 1 auto", "minHeight": 0, "overflowY": "auto"},
 				),
 			],
 			gap="xs",
@@ -593,11 +622,15 @@ def _right_panel():
 					html.Div(_table_panel(), style={"flex": "7 1 0", "minWidth": 0}),
 				],
 				gap="md",
-				style={"flex": "1 1 auto", "minHeight": 0},
+				style={"flex": "1 1 30%", "minHeight": "320px"},
 			),
 		],
 		gap="md",
-		style={"height": COL_HEIGHT},
+		# The graph grows to ~70% and won't shrink below its floor, so on short
+		# viewports this column overflows here and scrolls rather than squeezing
+		# the figure; the lower cards manage their own inner overflow (see
+		# _controls_panel / _table_panel).
+		style={"height": COL_HEIGHT, "overflowY": "auto", "overflowX": "hidden"},
 	)
 
 
@@ -625,11 +658,29 @@ def build_layout():
 		children=html.Div(
 			[
 				*_stores(),
+				dmc.NotificationProvider(position="top-center", zIndex=2000),
+				html.Div(id="notifications-container"),
 				_header(),
 				dmc.Grid(
 					[
-						dmc.GridCol(_left_panel(), span={"base": 12, "md": 3}),
-						dmc.GridCol(_right_panel(), span={"base": 12, "md": 9}),
+						# Cap the pipeline column at 500px; the view column uses
+						# span="auto" so it grows to fill the space freed by the cap
+						# (rather than leaving a gap) on wide monitors.
+						dmc.GridCol(
+							_left_panel(),
+							span={"base": 12, "md": 3},
+							style={"maxWidth": "500px"},
+						),
+						# minWidth:0 lets this column shrink below its content's
+						# min-content width (the native-filter table is wide). Without
+						# it the column can't shrink and Mantine's flex-wrap Grid drops
+						# it onto the next line — collapsing it below the left column on
+						# resize. The table's own overflowX scrolls instead.
+						dmc.GridCol(
+							_right_panel(),
+							span={"base": 12, "md": "auto"},
+							style={"minWidth": 0},
+						),
 					],
 					gutter="md",
 				),
