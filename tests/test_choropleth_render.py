@@ -63,3 +63,26 @@ def test_value_to_color_clamps_out_of_range():
 def test_value_to_color_degenerate_range_uses_midpoint():
 	# vmax == vmin -> t defaults to 0.5 (no division by zero).
 	assert value_to_color(3.0, 2.0, 2.0) == value_to_color(99.0, 2.0, 2.0)
+
+def test_render_uses_explicit_color_range(sample_geojson, score_df):
+    fig = render_brain_slice(
+        sample_geojson,
+        score_df,
+        value_col="density",
+        zmin=0,
+        zmax=10,
+    )
+
+    assert fig.layout.coloraxis.cmin == 0
+    assert fig.layout.coloraxis.cmax == 10
+
+def test_render_forwards_plotly_kwargs(sample_geojson, score_df):
+    fig = render_brain_slice(
+        sample_geojson,
+        score_df,
+        value_col="density",
+        title="My Brain Map",
+        zoom=5,
+    )
+
+    assert fig.layout.title.text == "My Brain Map"
