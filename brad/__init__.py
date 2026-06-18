@@ -1,4 +1,4 @@
-from plotlybrain.scores import (
+from brad.scores import (
     find_animal_id,
     load_refatlas_regions,
     compute_animal_region_counts,
@@ -10,14 +10,14 @@ from plotlybrain.scores import (
     score_table,
     save_scores,
 )
-from plotlybrain.coord_system import (
+from brad.coord_system import (
     CCFConfig,
     get_ccf_config,
     coord_mm_to_slice_index,
     slice_index_to_coordinate_mm,
     range_mm_to_slice_indices,
 )
-from plotlybrain.build_geoJSON import (
+from brad.build_geoJSON import (
     ANNOTATION_URLS,
     STRUCTURE_GRAPH_URL,
     BuildConfig,
@@ -32,21 +32,21 @@ from plotlybrain.build_geoJSON import (
     save_geojson,
 )
 
-from plotlybrain.metadata import (
+from brad.metadata import (
     MetadataConfig
 )
 
-from plotlybrain.choropleth_render import (
+from brad.choropleth_render import (
     render_brain_slice
 )
 
-from plotlybrain.io import (
+from brad.io import (
     load_geojson, 
     load_score,
     save_figure
 )
 
-from plotlybrain.types import (
+from brad.types import (
     ScoreName, 
     RelAbundanceMethod, 
     ReferenceMode

@@ -3,7 +3,7 @@ requires      = [ "setuptools>=61.0" ]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "plotlybrain"
+name = "brad"
 version = "0.1.0"
 description = "placeholder"
 readme = "README.md"
@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = "MIT"
 license-files = [ "LICENSE" ]
 authors = [
-    { name = "Anna Teruel-Sanchis", email = "anna.teruel@uv.es" },
+    { name = "Anna Teruel-Sanchis", email = "ateruels@uni-bremen.de" },
     { name = "Konrad Danielewski", email = "k.danielewski@nencki.edu.pl" },
 ]
 keywords = [ "neuroscience", "data-visualization", "data-analysis" ]
@@ -44,22 +44,22 @@ dependencies = [
 ]
 
     [project.urls]
-    Homepage = "https://github.com/anna-teruel/PlotlyBrain"
-    Issues   = "https://github.com/anna-teruel/PlotlyBrain/issues"
+    Homepage = "https://github.com/anna-teruel/BRAD"
+    Issues   = "https://github.com/anna-teruel/BRAD/issues"
 
     [project.scripts]
-    plotlybrain-app = "plotlybrain.app.__main__:main"
+    brad = "brad.app.__main__:main"
 
 [tool.setuptools]
 include-package-data = true
 
     [tool.setuptools.packages.find]
     where      = [ "." ]
-    include    = [ "plotlybrain*" ]
+    include    = [ "brad*" ]
     namespaces = true
 
     [tool.setuptools.package-data]
-    plotlybrain = [ "app/assets/*" ]
+    brad = [ "app/assets/*" ]
 
 [tool.ruff]
 line-length = 100
