@@ -124,9 +124,13 @@ class MetadataConfig:
                 f"Available columns: {list(df.columns)}"
             )
 
+        # Animals with no metadata match have NA group values. Under pandas
+        # StringDtype, astype(str) leaves those as NA (not "nan"), which would
+        # crash the join below; fillna makes every entry a real string.
         df["group_label"] = (
             df[group_cols]
             .astype(str)
+            .fillna("nan")
             .agg(self.group_name_sep.join, axis=1)
         )
 

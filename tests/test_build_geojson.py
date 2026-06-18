@@ -1,22 +1,107 @@
 """Tests for slice extraction, mask polygonization, and GeoJSON assembly."""
 
+import copy
+import json
+
 import numpy as np
+import pandas as pd
 import pytest
 from shapely.geometry import MultiPolygon, Polygon
 
+import plotlybrain.build_geoJSON as bg
 from plotlybrain.build_geoJSON import (
 	load_annotation_volume,
+	load_structure_graph,
 	get_slice_view,
 	clean_polygons_geometry,
 	mask_to_polygon,
 	build_geojson,
+	save_geojson,
 )
+
+
+def _flat_coords(geometry_coordinates):
+	return np.array(
+		[pt for poly in geometry_coordinates for ring in poly for pt in ring]
+	)
 
 
 def test_load_annotation_volume_rejects_unsupported_resolution():
 	# Validation happens before any network access.
 	with pytest.raises(ValueError):
 		load_annotation_volume(resolution_um=7)
+
+
+def test_load_annotation_volume_returns_array(monkeypatch):
+	# Success path: download + NRRD parsing are mocked so no network is hit.
+	# The contract is a bare 3D array (the dashboard relies on `.shape`).
+	fake_volume = np.zeros((2, 3, 4), dtype=np.uint32)
+	monkeypatch.setattr(bg, "download_bytes", lambda url: b"raw-bytes")
+	monkeypatch.setattr(bg.nrrd, "read_header", lambda memory_file: {"sizes": [2, 3, 4]})
+	monkeypatch.setattr(bg.nrrd, "read_data", lambda header, memory_file: fake_volume)
+
+	out = load_annotation_volume(resolution_um=25)
+	assert isinstance(out, np.ndarray)
+	assert out.shape == (2, 3, 4)
+
+
+def test_load_structure_graph_flattens_tree(monkeypatch):
+	# A nested ontology (root -> grey -> Isocortex) must flatten to one row per
+	# node with parent_structure_id wired from the tree (root's parent is None).
+	ontology = {
+		"msg": [
+			{
+				"id": 997,
+				"acronym": "root",
+				"name": "root",
+				"graph_order": 0,
+				"structure_id_path": "/997/",
+				"color_hex_triplet": "FFFFFF",
+				"children": [
+					{
+						"id": 8,
+						"acronym": "grey",
+						"name": "Basic cell groups and regions",
+						"graph_order": 1,
+						"structure_id_path": "/997/8/",
+						"color_hex_triplet": "BFDAE3",
+						"children": [
+							{
+								"id": 315,
+								"acronym": "Isocortex",
+								"name": "Isocortex",
+								"graph_order": 2,
+								"structure_id_path": "/997/8/315/",
+								"color_hex_triplet": "70FF71",
+								"children": [],
+							}
+						],
+					}
+				],
+			}
+		]
+	}
+	monkeypatch.setattr(bg, "download_bytes", lambda url: json.dumps(ontology).encode("utf-8"))
+
+	df = load_structure_graph()
+
+	assert set(df["id"]) == {997, 8, 315}
+	for col in (
+		"id",
+		"acronym",
+		"name",
+		"parent_structure_id",
+		"graph_order",
+		"structure_id_path",
+		"color_hex_triplet",
+	):
+		assert col in df.columns
+
+	# Mixing None (root) with ints makes the column float, so root reads as NaN.
+	parent = dict(zip(df["id"], df["parent_structure_id"]))
+	assert pd.isna(parent[997])
+	assert parent[8] == 997
+	assert parent[315] == 8
 
 
 def test_get_slice_view_per_orientation():
@@ -132,3 +217,28 @@ def test_build_geojson_requires_exactly_one_selection(synthetic_volume, structur
 			structure_df=structure_df,
 			orientation="coronal",
 		)
+
+
+def test_save_geojson_preserves_built_coordinates(tmp_path, synthetic_volume, structure_df):
+	# build_geojson already scales pixel coords into lon/lat space. Saving must
+	# persist that geometry verbatim, not scale (and y-flip) it a second time.
+	geojson = build_geojson(
+		volume=synthetic_volume,
+		structure_df=structure_df,
+		orientation="coronal",
+		resolution_um=25,
+		slice_indices=[1],
+		min_area_px=5.0,
+		simplify_px=0.5,
+		polygon_mode="raster",
+		lon_range=(-15.0, 15.0),
+		lat_range=(-10.0, 10.0),
+	)
+	before = copy.deepcopy(geojson["features"][0]["geometry"]["coordinates"])
+
+	out_path = save_geojson(geojson, str(tmp_path / "slice.geojson"))
+	with open(out_path, encoding="utf-8") as f:
+		reloaded = json.load(f)
+	after = reloaded["features"][0]["geometry"]["coordinates"]
+
+	assert _flat_coords(after) == pytest.approx(_flat_coords(before))

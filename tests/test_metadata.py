@@ -74,3 +74,16 @@ def test_merge_and_add_groups_missing_group_column_raises():
 	df = pd.DataFrame({"animal": ["A1"], "objects": [10]})
 	with pytest.raises(KeyError):
 		cfg.merge_and_add_groups(df)
+
+
+def test_merge_and_add_groups_unmatched_animal_yields_nan_group(metadata_csv):
+	# A9 is absent from the metadata; a left merge leaves its group column NaN,
+	# which .astype(str) turns into the literal string "nan". This documents
+	# the current (silent) behavior so a future change to it is intentional.
+	cfg = MetadataConfig(
+		metadata_path=metadata_csv, sep=",", animal_col="animal", group_col="group"
+	)
+	df = pd.DataFrame({"animal": ["A1", "A9"], "objects": [10, 5]})
+	merged, _ = cfg.merge_and_add_groups(df)
+	assert merged.loc[merged["animal"] == "A1", "group_label"].iloc[0] == "control"
+	assert merged.loc[merged["animal"] == "A9", "group_label"].iloc[0] == "nan"

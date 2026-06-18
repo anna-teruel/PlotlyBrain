@@ -92,3 +92,14 @@ def test_range_step_must_be_positive():
 		range_mm_to_slice_indices(start_mm=-3.0, end_mm=-1.0, step_mm=0.0)
 	with pytest.raises(ValueError):
 		range_mm_to_slice_indices(start_mm=-3.0, end_mm=-1.0, step_mm=-0.5)
+
+
+def test_range_step_does_not_overshoot_end():
+	# A step that does not evenly divide the interval must not sample a
+	# coordinate beyond end_mm (np.arange(..., hi + step, step) overshoots).
+	out = range_mm_to_slice_indices(start_mm=-3.0, end_mm=-1.0, step_mm=0.7, resolution_um=25)
+	i0 = coord_mm_to_slice_index(-3.0, "coronal", 25)
+	i1 = coord_mm_to_slice_index(-1.0, "coronal", 25)
+	lo, hi = sorted((i0, i1))
+	assert min(out) >= lo
+	assert max(out) <= hi
