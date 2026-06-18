@@ -1,6 +1,5 @@
 """
 Choropleth rendering of Allen atlas slice GeoJSONs with Plotly.
-@author Anna Teruel-Sanchis, June 2026
 """
 
 from __future__ import annotations

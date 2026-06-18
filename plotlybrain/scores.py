@@ -1,6 +1,5 @@
 """
 Region-level score tables from QUINT *_RefAtlasRegions.csv exports.
-@author Anna Teruel-Sanchis, Jan 2026
 """
 
 import glob

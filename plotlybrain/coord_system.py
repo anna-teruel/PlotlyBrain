@@ -3,7 +3,6 @@ Utilities to convert between Allen CCF slice indices and
 approximate AP coordinates relative to bregma.
 
 https://community.brain-map.org/t/how-to-transform-ccf-x-y-z-coordinates-into-stereotactic-coordinates/1858
-@author @anna-teruel, Mar 2026
 """
 
 from dataclasses import dataclass

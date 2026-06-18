@@ -1,6 +1,5 @@
 """
 Build selected per-slice GeoJSON polygons from the Allen CCF annotation volume.
-@author @anna-teruel, Mar 2026
 """
 
 import io
