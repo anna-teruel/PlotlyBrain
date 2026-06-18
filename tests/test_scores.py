@@ -1,5 +1,7 @@
 """Tests for scoring: loading, aggregation, and the individual score metrics."""
 
+import os
+
 import pandas as pd
 import pytest
 
@@ -13,6 +15,7 @@ from plotlybrain.scores import (
 	consistency_score,
 	density_score,
 	score_table,
+	save_scores,
 )
 
 
@@ -206,3 +209,19 @@ def test_score_table_reference_group_missing_raises(quint_dir, metadata_csv):
 			reference_mode="group",
 			reference_group="nonexistent",
 		)
+
+
+# --- save_scores ------------------------------------------------------------
+
+def test_save_scores_writes_table_matching_score_table(quint_dir, tmp_path):
+	out_path = tmp_path / "nested" / "scores.csv"  # nested dir must be created
+	returned = save_scores(quint_dir, str(out_path), scores=["density"])
+
+	assert os.path.exists(out_path)
+	reloaded = pd.read_csv(out_path)
+	# The returned table equals score_table(), and the file is its serialization.
+	expected = score_table(quint_dir, scores=["density"])
+	pd.testing.assert_frame_equal(
+		returned.reset_index(drop=True), expected.reset_index(drop=True)
+	)
+	assert set(reloaded["Region ID"].dropna()) == {315, 672}

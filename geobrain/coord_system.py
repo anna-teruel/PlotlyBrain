@@ -254,8 +254,12 @@ def range_mm_to_slice_indices(
             raise ValueError("step_mm must be positive.")
 
     else:
-        lo_mm, hi_mm = sorted((start_mm, end_mm)) 
+        lo_mm, hi_mm = sorted((start_mm, end_mm))
+        # np.arange's upper bound is padded by step_mm so the endpoint is
+        # included when it divides evenly; clip so a non-dividing step never
+        # samples a coordinate past hi_mm.
         coords = np.arange(lo_mm, hi_mm + step_mm, step_mm)
+        coords = coords[coords <= hi_mm + 1e-9]
 
         indices = [
             coord_mm_to_slice_index(

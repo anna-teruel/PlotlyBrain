@@ -126,14 +126,14 @@ def download_bytes(
 
 def load_annotation_volume(
     resolution_um: int,
-) -> tuple[np.ndarray, dict]:
+) -> np.ndarray:
     """
     Load an Allen CCF annotation volume into memory.
 
     The annotation volume contains integer structure IDs for each voxel
     in the Allen Common Coordinate Framework (CCF). The file is downloaded
     from the Allen Institute URL and read directly from memory, without
-    saving the NRRD file to disk. 
+    saving the NRRD file to disk.
 
     Args:
         resolution_um : int
@@ -141,8 +141,8 @@ def load_annotation_volume(
             and 100.
 
     Returns:
-        tuple[np.ndarray, dict]
-            Annotation volume and NRRD header.
+        np.ndarray
+            3D annotation volume of integer structure IDs.
     """
     if resolution_um not in ANNOTATION_URLS:
         raise ValueError(
@@ -498,14 +498,20 @@ def scale_cartesian_to_lonlat(
     lon_min, lon_max = lon_range
     lat_min, lat_max = lat_range
 
+    # Guard against a zero-extent axis (e.g. a single point or a sliver):
+    # a degenerate span maps every coordinate to the middle of the range
+    # instead of dividing by zero and producing NaN/inf.
+    x_span = xmax - xmin
+    y_span = ymax - ymin
+
     for f in features:
         geom = f["geometry"]
         geom["coordinates"] = [
             [
                 [
                     [
-                        float(lon_min + (x - xmin) / (xmax - xmin) * (lon_max - lon_min)),
-                        float(lat_max - (y - ymin) / (ymax - ymin) * (lat_max - lat_min)),
+                        float(lon_min + ((x - xmin) / x_span if x_span else 0.5) * (lon_max - lon_min)),
+                        float(lat_max - ((y - ymin) / y_span if y_span else 0.5) * (lat_max - lat_min)),
                     ]
                     for x, y in ring
                 ]
@@ -741,48 +747,30 @@ def build_geojson(
 def save_geojson(
     geojson_obj: dict,
     out_path: str,
-    lon_range: tuple[float, float] = (-15.0, 15.0),
-    lat_range: tuple[float, float] = (-10.0, 10.0),
 ) -> str:
     """
     Save a GeoJSON FeatureCollection to disk.
+
+    The geometry is written verbatim. ``build_geojson`` already scales
+    coordinates into pseudo lon/lat space, so this function must not scale
+    again (doing so would re-normalize and vertically flip the slice).
 
     Args:
         geojson_obj : dict
             GeoJSON FeatureCollection to save.
         out_path : str
             Output GeoJSON file path.
-        lon_range : tuple[float, float], default=(-15.0, 15.0)
-            Output longitude range used during coordinate scaling.
-        lat_range : tuple[float, float], default=(-10.0, 10.0)
-            Output latitude range used during coordinate scaling.
 
     Returns:
         str
             Absolute path to the saved GeoJSON file.
 
     Examples:
-        Save a GeoJSON file without coordinate conversion:
+        Save a GeoJSON file produced by build_geojson():
 
-        >>> save_geojson(
-        ...     geojson_obj,
-        ...     "atlas_slice.geojson",
-        ... )
-
-        Save a GeoJSON file using pseudo lon/lat coordinates:
-
-        >>> save_geojson(
-        ...     geojson_obj,
-        ...     "atlas_slice_lonlat.geojson",
-        ...     convert_to_lonlat=True,
-        ... )
+        >>> geojson = build_geojson(...)
+        >>> save_geojson(geojson, "atlas_slice.geojson")
     """
-
-    geojson_obj = scale_cartesian_to_lonlat(
-            geojson_obj,
-            lon_range=lon_range,
-            lat_range=lat_range,
-        )
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
 
