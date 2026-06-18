@@ -1,6 +1,5 @@
 """
 Metadata loading and grouping utilities.
-@author Anna Teruel-Sanchis, Jun 2026
 """
 
 from dataclasses import dataclass

@@ -1,5 +1,6 @@
 """
-@author Anna Teruel-Sanchis, Jun 2026
+Utilities for loading score tables, GeoJSON files and saving
+Plotly figures generated from region-level brain atlas analyses. 
 """
 
 import json
