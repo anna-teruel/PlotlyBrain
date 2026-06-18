@@ -5,7 +5,8 @@
 </p>
 </div>
 
-BRAD (Brain Region Analysis Dashboard) is an interactive Python framework for atlas-based visualization of quantitative histological data. It maps region-wise metrics derived from atlas-registered workflows (such as QUINT) onto the Allen Mouse Brain Common Coordinate Framework, combining measures of signal abundance and cross-animal consistency. Using a Plotly-based interface, BRAD enables dynamic exploration of brain-wide patterns across regions, rostro–caudal levels, experimental groups, and markers, while also supporting high-resolution static exports and 3D renderings. The framework is modular, marker-agnostic, and designed to improve the interpretability and accessibility of large-scale neuroanatomical datasets.  ￼
+BRAD (Brain Region Analysis Dashboard) is an interactive Python framework for atlas-based visualization of quantitative histological data. It maps region-wise metrics derived from atlas-registered workflows, such as QUINT [1], onto the Allen Mouse Brain Common Coordinate Framework (CCFv3) [2]. Built on Plotly, BRAD provides interactive 2D atlas navigation, group comparisons, customizable color mapping, web-based dashboard for exploratory analysis and publication-quality exports. 
+
 
 ## Installation
 
@@ -23,6 +24,8 @@ uv pip install .
 
 - [Using the dashboard](docs/dashboard_usage.md) — launching the app and the full workflow: load atlas, build slices, compute scores, view and export.
 - [Filtering & coloring rendered slices](docs/filtering_and_coloring.md) — how to color regions by score, filter and select which regions stay highlighted, and apply a flat color.
+- [Understanding Scores](docs/score_definitions.md) — score definitions, normalization methods and interpretation. 
+- [Tutorial](examples/demo_API.ipynb) - end-to-end example using the API. 
 
 ## License
 
@@ -30,3 +33,9 @@ This project is licensed under the MIT License © 2026
 Anna Teruel-Sanchis and Konrad Danielewski.
 
 See the [LICENSE](LICENSE) file for details.
+
+## References
+
+[1] Yates, S. C., et al. (2019). *QUINT: Workflow for Quantification and Spatial Analysis of Features in Histological Images From Rodent Brain*. Frontiers in Neuroinformatics, 13, 75.
+
+[2] Wang, Q., et al. (2020). *The Allen Mouse Brain Common Coordinate Framework: A 3D Reference Atlas*. Cell, 181(4), 936–953.e20.
