@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-  <img src="docs/logos/BRAD_logo1.png" width="45%">
+  <img src="docs/logos/BRAD_logo1.png" width="75%">
 </p>
 </div>
 
