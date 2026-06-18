@@ -13,9 +13,9 @@ regions once they're rendered, see
 After installing (see the [README](../README.md)):
 
 ```
-python -m plotlybrain.app
+python -m brad
 # or, after install, the console script:
-plotlybrain-app
+brad
 ```
 
 A browser tab opens automatically at `http://127.0.0.1:8050`. Options:
@@ -110,8 +110,10 @@ Loads your QUINT output and computes per-region metrics.
      `animal`).
    - **Group column(s)** — metadata column(s) to group by (default `group`;
      comma-separate for multiple).
-   - **Rel. abundance method** — *Within* or *Reference*.
-   - **Reference mode** — *Pooled* or *Group*.
+   - **Rel. abundance method** — *Within* or *Reference*. Details are covered on
+      [Understanding Scores](score_definitions.md).
+   - **Reference mode** — *Pooled* or *Group*. Details are covered on
+      [Understanding Scores](score_definitions.md).
    - **Reference group (if mode = group)** — which group is the reference.
 6. Click **Compute scores**. This computes **relative abundance**, **frequency**
    and **density** for every region, per group. A progress bar reports status.
@@ -136,6 +138,7 @@ it; the coloring controls and the region table sit side by side in a row below.
   below it shows the slice index, mm coordinate, and position (e.g. `3/12`).
 - **Score** — choose *Rel. abundance*, *Frequency*, or *Density*. Switching it
   resets `zmin`/`zmax` to that score's sensible default range.
+  Details are covered on [Understanding Scores](score_definitions.md).
 - **Group** — choose which group's scores to display (an `All (mean)` entry is
   added automatically when multiple groups exist).
 - **Colorscale**, **zmin / zmax** — the colormap and its range (blank = auto).
