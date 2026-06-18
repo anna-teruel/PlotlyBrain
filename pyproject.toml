@@ -63,6 +63,17 @@ include-package-data = true
     [tool.setuptools.package-data]
     geobrain = [ "app/assets/*" ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+testpaths = [ "tests" ]
+addopts = "-ra"
+
 [tool.ruff]
 line-length = 100
 
