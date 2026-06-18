@@ -103,3 +103,15 @@ def test_range_step_does_not_overshoot_end():
 	lo, hi = sorted((i0, i1))
 	assert min(out) >= lo
 	assert max(out) <= hi
+
+@pytest.mark.parametrize("orientation", ["sagittal", "horizontal"])
+def test_range_interval_other_orientations(orientation):
+    out = range_mm_to_slice_indices(
+        start_mm=-1.0,
+        end_mm=1.0,
+        orientation=orientation,
+        resolution_um=25,
+    )
+
+    assert len(out) > 0
+    assert out == sorted(out)

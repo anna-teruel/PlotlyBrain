@@ -242,3 +242,51 @@ def test_save_geojson_preserves_built_coordinates(tmp_path, synthetic_volume, st
 	after = reloaded["features"][0]["geometry"]["coordinates"]
 
 	assert _flat_coords(after) == pytest.approx(_flat_coords(before))
+
+def test_scale_cartesian_to_lonlat_maps_bounds():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "MultiPolygon",
+                    "coordinates": [[[
+                        [0, 0],
+                        [10, 0],
+                        [10, 20],
+                        [0, 20],
+                        [0, 0],
+                    ]]],
+                },
+            }
+        ],
+    }
+
+    out = bg.scale_cartesian_to_lonlat(
+        geojson,
+        lon_range=(-1, 1),
+        lat_range=(-2, 2),
+    )
+
+    coords = _flat_coords(out["features"][0]["geometry"]["coordinates"])
+
+    assert coords[:, 0].min() == pytest.approx(-1)
+    assert coords[:, 0].max() == pytest.approx(1)
+    assert coords[:, 1].min() == pytest.approx(-2)
+    assert coords[:, 1].max() == pytest.approx(2)
+
+def test_build_geojson_from_coords_mm(synthetic_volume, structure_df):
+    geojson = build_geojson(
+        volume=synthetic_volume,
+        structure_df=structure_df,
+        orientation="coronal",
+        resolution_um=25,
+        coords_mm=[0.0],
+        min_area_px=5.0,
+        simplify_px=0.5,
+        polygon_mode="raster",
+    )
+
+    assert geojson["type"] == "FeatureCollection"
