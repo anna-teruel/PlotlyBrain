@@ -228,6 +228,7 @@ def build_export_figure(
 	regions = geometry_payload.get("by_slice", {}).get(str(int(slice_index)), [])
 	dims = geometry_payload.get("dims")
 	cmap = colorscale or "RdBu_r"
+	colorbar_scale = resolve_name(cmap) # Handle custom cmaps
 
 	# Mirror the live view's gating (see assets/render.js): the row selection
 	# narrows coloring to `selected_rids`, and the flat color replaces the
@@ -274,7 +275,7 @@ def build_export_figure(
 				marker=dict(
 					size=0,
 					color=[zmin, zmax],
-					colorscale=cmap,
+					colorscale=colorbar_scale,
 					cmin=zmin,
 					cmax=zmax,
 					showscale=True,
