@@ -41,6 +41,7 @@ dependencies = [
     "diskcache",
     "multiprocess",
     "psutil",
+    "tqdm",
 ]
 
     [project.urls]
