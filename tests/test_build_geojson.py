@@ -278,15 +278,21 @@ def test_scale_cartesian_to_lonlat_maps_bounds():
     assert coords[:, 1].max() == pytest.approx(2)
 
 def test_build_geojson_from_coords_mm(synthetic_volume, structure_df):
+    # synthetic_volume has only 3 coronal slices, with structures on index 1.
+    # At 25 um, bregma AP index is 228, so the coord that maps to slice 1 is
+    # (228 - 1) * 25 / 1000 = 5.675 mm.
     geojson = build_geojson(
         volume=synthetic_volume,
         structure_df=structure_df,
         orientation="coronal",
         resolution_um=25,
-        coords_mm=[0.0],
+        coords_mm=[5.675],
         min_area_px=5.0,
         simplify_px=0.5,
         polygon_mode="raster",
     )
 
     assert geojson["type"] == "FeatureCollection"
+    assert all(
+        feat["properties"]["slice_index"] == 1 for feat in geojson["features"]
+    )
