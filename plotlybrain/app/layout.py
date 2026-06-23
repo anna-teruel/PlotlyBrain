@@ -485,7 +485,7 @@ def _controls_panel():
 							id="colorscale-select",
 							label="Colorscale",
 							data=COLORSCALES,
-							value="Viridis",
+							value="Aurora",
 							style={"flex": 1},
 							allowDeselect=False,
 						),
