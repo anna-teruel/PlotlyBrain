@@ -182,7 +182,7 @@ def resolve_colorscale(name: str | None, n: int = 21) -> list[list[Any]]:
 
 	Sampling to evenly-spaced RGB stops lets the browser interpolate fill colors
 	without shipping Plotly's colorscale machinery. Handles the ``_r`` reversed
-	suffix and falls back to Viridis for unknown names.
+	suffix and falls back to Aurora for unknown names.
 	"""
 	name = name or "RdBu_r"
 	reverse = name.endswith("_r")
@@ -192,13 +192,38 @@ def resolve_colorscale(name: str | None, n: int = 21) -> list[list[Any]]:
 	try:
 		colors = sample_colorscale(base, points, colortype="rgb")
 	except Exception:
-		colors = sample_colorscale("Viridis", points, colortype="rgb")
+		colors = sample_colorscale("Aurora", points, colortype="rgb")
 		reverse = False
 
 	if reverse:
 		colors = colors[::-1]
 
 	return [[points[i], _parse_rgb(c)] for i, c in enumerate(colors)]
+
+
+def _auto_range(
+	values, zmin: float | None, zmax: float | None
+) -> tuple[float | None, float | None]:
+	"""Fill missing color limits from the data, mirroring ``autoRange`` in render.js.
+
+	The live view auto-ranges any limit left unset (e.g. density, whose default
+	range is ``(None, None)``); the export must do the same or every region maps
+	to the colorscale midpoint.
+	"""
+	if zmin is not None and zmax is not None:
+		return zmin, zmax
+	nums = [
+		float(v)
+		for v in values
+		if v is not None and not (isinstance(v, float) and np.isnan(v))
+	]
+	if not nums:
+		lo, hi = 0.0, 1.0
+	else:
+		lo, hi = min(nums), max(nums)
+		if lo == hi:
+			hi = lo + 1.0
+	return (lo if zmin is None else zmin, hi if zmax is None else zmax)
 
 
 def build_export_figure(
@@ -235,6 +260,11 @@ def build_export_figure(
 	dims = geometry_payload.get("dims")
 	cmap = colorscale or "RdBu_r"
 	colorbar_scale = resolve_name(cmap) # Handle custom cmaps
+
+	# Auto-range unset limits from the data, matching the live view (render.js).
+	# Without this, density (default range (None, None)) collapses every region
+	# to the colorscale midpoint on export.
+	zmin, zmax = _auto_range(id2value.values(), zmin, zmax)
 
 	# Mirror the live view's gating (see assets/render.js): the row selection
 	# narrows coloring to `selected_rids`, and the flat color replaces the

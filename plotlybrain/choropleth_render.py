@@ -8,6 +8,7 @@ import math
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
+from geobrain.colormaps import resolve_name
 
 def render_brain_slice(
     geojson_obj: dict,
@@ -112,8 +113,8 @@ def render_brain_slice(
     range_color = None
     if zmin is not None and zmax is not None:
         range_color = (zmin, zmax)
-
-    kwargs.setdefault("color_continuous_scale", "Viridis")
+    
+    kwargs.setdefault("color_continuous_scale", resolve_name("Aurora"))
     kwargs.setdefault("map_style", "white-bg")
     kwargs.setdefault("center", {"lat": 0, "lon": 0})
     kwargs.setdefault("zoom", 3)
