@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
 from plotlybrain.build_geoJSON import get_slice_view, mask_to_polygon
+from plotlybrain.colormaps import resolve_name
 from plotlybrain.coord_system import slice_index_to_coordinate_mm
 from plotlybrain.choropleth_render import value_to_color
 
@@ -179,7 +180,7 @@ def resolve_colorscale(name: str | None, n: int = 21) -> list[list[Any]]:
 	"""
 	name = name or "RdBu_r"
 	reverse = name.endswith("_r")
-	base = name[:-2] if reverse else name
+	base = resolve_name(name[:-2] if reverse else name)
 	points = [i / (n - 1) for i in range(n)]
 
 	try:
@@ -227,6 +228,7 @@ def build_export_figure(
 	regions = geometry_payload.get("by_slice", {}).get(str(int(slice_index)), [])
 	dims = geometry_payload.get("dims")
 	cmap = colorscale or "RdBu_r"
+	colorbar_scale = resolve_name(cmap) # Handle custom cmaps
 
 	# Mirror the live view's gating (see assets/render.js): the row selection
 	# narrows coloring to `selected_rids`, and the flat color replaces the
@@ -273,7 +275,7 @@ def build_export_figure(
 				marker=dict(
 					size=0,
 					color=[zmin, zmax],
-					colorscale=cmap,
+					colorscale=colorbar_scale,
 					cmin=zmin,
 					cmax=zmax,
 					showscale=True,

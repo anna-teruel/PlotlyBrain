@@ -2,6 +2,8 @@ import dash_mantine_components as dmc
 import plotly.express as px
 from dash import dash_table, dcc, html
 
+from plotlybrain.colormaps import CUSTOM_COLORSCALES
+
 RESOLUTIONS = [{"label": f"{r} µm", "value": str(r)} for r in (10, 25, 50, 100)]
 ORIENTATIONS = [
 	{"label": "Coronal", "value": "coronal"},
@@ -18,6 +20,8 @@ SCORES = [
 	{"label": "Density", "value": "density"},
 ]
 COLORSCALES = [
+	{"label": name, "value": name} for name in CUSTOM_COLORSCALES
+] + [
 	{"label": name, "value": name}
 	for name in dir(px.colors.sequential)
 	if not name.startswith("_") and isinstance(getattr(px.colors.sequential, name), list)
