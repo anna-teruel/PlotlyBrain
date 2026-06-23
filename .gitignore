@@ -5,3 +5,8 @@ build/
 dist/
 test_result/
 examples/data
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/

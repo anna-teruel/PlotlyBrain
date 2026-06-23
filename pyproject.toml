@@ -67,11 +67,19 @@ dev = [
     "pytest>=8",
     "pytest-cov",
     "ruff",
+    "selenium>=4.28",
+    "beautifulsoup4",
+    "percy-python-selenium",
+    "dash-testing-stub",
+    "requests",
 ]
 
 [tool.pytest.ini_options]
 testpaths = [ "tests" ]
-addopts = "-ra"
+addopts = "-ra --headless"
+markers = [
+    "browser: dash.testing browser integration tests (launch headless Chrome)",
+]
 
 [tool.ruff]
 line-length = 100
