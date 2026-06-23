@@ -123,7 +123,7 @@ window.dash_clientside.plotlybrain = {
 		const host = document.getElementById("brain-graph");
 		const gd = host && host.querySelector(".js-plotly-plot");
 		if (!gd || !window.Plotly) {
-			// Plot not initialized yet — let Dash create it from the figure prop.
+			// Plot not initialized yet - let Dash create it from the figure prop.
 			return ns.buildFigure.apply(ns, arguments);
 		}
 		ns._latestArgs = arguments;
@@ -214,7 +214,7 @@ window.dash_clientside.plotlybrain = {
 			});
 		}
 
-		// Invisible colorbar trace — omitted in static mode (colormap is off).
+		// Invisible colorbar trace - omitted in static mode (colormap is off).
 		if (!staticMode) {
 			const plotlyScale = stops.map((s) => [s[0], `rgb(${s[1][0]},${s[1][1]},${s[1][2]})`]);
 			traces.push({

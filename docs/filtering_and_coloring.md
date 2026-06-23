@@ -6,7 +6,7 @@ the row checkboxes, and how to apply a single **flat color** instead of the
 colormap.
 
 All of this happens live in the browser as you drag the slider or change a
-control — there is no server round-trip. The logic lives in
+control - there is no server round-trip. The logic lives in
 [`plotlybrain/app/assets/render.js`](../plotlybrain/app/assets/render.js); the
 controls are defined in
 [`plotlybrain/app/layout.py`](../plotlybrain/app/layout.py).
@@ -69,7 +69,7 @@ you *find* regions; the checkboxes are what control highlighting on the brain.
 
 Type into a column's filter box (the row just under the header), or click a
 header to sort. This narrows / reorders the **table list** so you can find
-regions quickly — for example, sort by value descending, or filter the names to
+regions quickly - for example, sort by value descending, or filter the names to
 a structure of interest.
 
 > **Filtering does not recolor the brain.** It only changes which rows are shown
@@ -132,7 +132,7 @@ When flat mode is active:
 
 > **Important:** the flat color only takes effect while a row selection is
 > active. If the Flat toggle is on but nothing is selected, regions fall back to
-> normal **value-based** coloring — a flat fill of *every* region would just be
+> normal **value-based** coloring - a flat fill of *every* region would just be
 > a solid blob.
 
 ### Worked examples
@@ -162,7 +162,7 @@ colorbar stays visible.
 | On | Yes | Selected regions = flat color; others gray; colorbar hidden. |
 
 NA / missing-value regions are always gray, in every mode. The table's text
-filter never changes any of the above — it only filters the table list.
+filter never changes any of the above - it only filters the table list.
 
 ---
 
@@ -182,9 +182,9 @@ controls as:
 
 Key gating variables inside `render`:
 
-- `selActive` / `selected` — the row-selection set and whether it gates (false
+- `selActive` / `selected` - the row-selection set and whether it gates (false
   when empty, or when none of the selected regions are on this slice).
-- `staticMode` — `useFlat && selActive`; the single condition that switches
+- `staticMode` - `useFlat && selActive`; the single condition that switches
   selected regions to the flat color and drops the colorbar.
 
 The static (server-side) export path in

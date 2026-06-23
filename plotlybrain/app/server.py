@@ -17,7 +17,7 @@ def create_app() -> Dash:
 	# multiprocess.Process, which defaults to *fork* on macOS. Forking the
 	# multithreaded Flask dev server trips Apple's Objective-C fork-safety guard
 	# ("+[NSNumber initialize] may have been in progress ... Crashing instead"),
-	# killing the worker before the callback runs — so e.g. "Load atlas" silently
+	# killing the worker before the callback runs - so e.g. "Load atlas" silently
 	# does nothing. The env var can't fix this (libobjc reads it at launch, before
 	# Python runs), so switch to *spawn*, which re-execs a clean interpreter and
 	# never forks. This is the same start method already used on Windows, where
