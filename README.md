@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-  <img src="docs/logos/geobrain_logo1.png" width="75%">
+  <img src="docs/logos/GeoBrain_logo1.png" width="75%">
 </p>
 </div>
 
