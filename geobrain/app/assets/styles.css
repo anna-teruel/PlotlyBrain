@@ -1,4 +1,8 @@
+<<<<<<< HEAD:plotlybrain/app/assets/styles.css
+/* PlotlyBrain dashboard - small visual refinements on top of Mantine. */
+=======
 /* GeoBrain dashboard — small visual refinements on top of Mantine. */
+>>>>>>> main:geobrain/app/assets/styles.css
 
 body {
 	margin: 0;
@@ -49,7 +53,7 @@ body {
 	padding: 4px 6px 10px 6px;
 }
 
-/* Slider mark (tick) labels are too dark on the dark scheme — lighten them.
+/* Slider mark (tick) labels are too dark on the dark scheme - lighten them.
    The `.slider-dark` class is toggled on the wrapper from the color-scheme
    switch; !important beats rc-slider's default mark color. */
 #slice-slider-wrap.slider-dark .dash-slider-mark {

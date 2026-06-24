@@ -2,7 +2,7 @@ import dash_mantine_components as dmc
 import plotly.express as px
 from dash import dash_table, dcc, html
 
-from plotlybrain.colormaps import CUSTOM_COLORSCALES
+from geobrain.colormaps import CUSTOM_COLORSCALES
 
 RESOLUTIONS = [{"label": f"{r} µm", "value": str(r)} for r in (10, 25, 50, 100)]
 ORIENTATIONS = [
@@ -19,9 +19,7 @@ SCORES = [
 	{"label": "Frequency", "value": "frequency"},
 	{"label": "Density", "value": "density"},
 ]
-COLORSCALES = [
-	{"label": name, "value": name} for name in CUSTOM_COLORSCALES
-] + [
+COLORSCALES = [{"label": name, "value": name} for name in CUSTOM_COLORSCALES] + [
 	{"label": name, "value": name}
 	for name in dir(px.colors.sequential)
 	if not name.startswith("_") and isinstance(getattr(px.colors.sequential, name), list)
@@ -477,7 +475,7 @@ def _controls_panel():
 					id="score-select", data=SCORES, value="rel_abundance", fullWidth=True
 				),
 				dmc.Select(
-					id="group-select", label="Group", data=[], placeholder="—", clearable=False
+					id="group-select", label="Group", data=[], placeholder="-", clearable=False
 				),
 				dmc.Group(
 					[
@@ -485,7 +483,7 @@ def _controls_panel():
 							id="colorscale-select",
 							label="Colorscale",
 							data=COLORSCALES,
-							value="Viridis",
+							value="Aurora",
 							style={"flex": 1},
 							allowDeselect=False,
 						),
@@ -566,7 +564,7 @@ def _table_panel():
 				dmc.Group(
 					[
 						dmc.Text(
-							"Region scores (current slice) — select rows to keep colored",
+							"Region scores (current slice) - select rows to keep colored",
 							fw=600,
 							size="sm",
 						),
@@ -583,7 +581,7 @@ def _table_panel():
 				),
 				# The table fills the remaining card height and scrolls. The scroll
 				# lives on this wrapper (a flex child with minHeight:0 so it can
-				# shrink below content size) — a percentage height on the table's
+				# shrink below content size) - a percentage height on the table's
 				# own container collapses to content height and never scrolls.
 				html.Div(
 					dash_table.DataTable(
@@ -678,7 +676,7 @@ def build_layout():
 						# minWidth:0 lets this column shrink below its content's
 						# min-content width (the native-filter table is wide). Without
 						# it the column can't shrink and Mantine's flex-wrap Grid drops
-						# it onto the next line — collapsing it below the left column on
+						# it onto the next line - collapsing it below the left column on
 						# resize. The table's own overflowX scrolls instead.
 						dmc.GridCol(
 							_right_panel(),

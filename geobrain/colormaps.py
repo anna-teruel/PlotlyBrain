@@ -1,15 +1,15 @@
 AURORA: list[str] = [
-	"rgb(22, 191, 168)",   # teal
-	"rgb(30, 155, 224)",   # cyan-blue
-	"rgb(58, 111, 232)",   # blue
-	"rgb(107, 83, 222)",   # indigo
-	"rgb(154, 76, 214)",   # violet
-	"rgb(197, 63, 192)",   # magenta
-	"rgb(232, 67, 147)",   # pink
-	"rgb(246, 92, 106)",   # rose
-	"rgb(250, 126, 78)",   # orange-red
-	"rgb(252, 160, 44)",   # orange
-	"rgb(255, 210, 63)",   # gold
+	"rgb(22, 191, 168)",  # teal
+	"rgb(30, 155, 224)",  # cyan-blue
+	"rgb(58, 111, 232)",  # blue
+	"rgb(107, 83, 222)",  # indigo
+	"rgb(154, 76, 214)",  # violet
+	"rgb(197, 63, 192)",  # magenta
+	"rgb(232, 67, 147)",  # pink
+	"rgb(246, 92, 106)",  # rose
+	"rgb(250, 126, 78)",  # orange-red
+	"rgb(252, 160, 44)",  # orange
+	"rgb(255, 210, 63)",  # gold
 ]
 
 CUSTOM_COLORSCALES: dict[str, list[str]] = {
