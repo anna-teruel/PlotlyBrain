@@ -41,6 +41,7 @@ dependencies = [
     "diskcache",
     "multiprocess",
     "psutil",
+    "tqdm",
 ]
 
     [project.urls]
@@ -49,6 +50,7 @@ dependencies = [
 
     [project.scripts]
     geobrain = "geobrain.app.__main__:main"
+    geobrain-app = "geobrain.app.__main__:main"
 
 [tool.setuptools]
 include-package-data = true
