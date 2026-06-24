@@ -750,10 +750,6 @@ def save_geojson(
     """
     Save a GeoJSON FeatureCollection to disk.
 
-    The geometry is written verbatim. ``build_geojson`` already scales
-    coordinates into pseudo lon/lat space, so this function must not scale
-    again (doing so would re-normalize and vertically flip the slice).
-
     Args:
         geojson_obj : dict
             GeoJSON FeatureCollection to save.
