@@ -20,7 +20,7 @@ from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from shapely.ops import unary_union
 from tqdm.auto import tqdm
 
-from plotlybrain.coord_system import (
+from geobrain.coord_system import (
     coord_mm_to_slice_index,
     range_mm_to_slice_indices,
     slice_index_to_coordinate_mm,

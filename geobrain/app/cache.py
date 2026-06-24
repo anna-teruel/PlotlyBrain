@@ -6,7 +6,7 @@ import diskcache
 
 # Dedicated directory so session data does not collide with the background
 # callback manager's own task cache.
-_DATA_DIR = os.path.join(os.path.expanduser("~"), ".plotlybrain_cache", "session_data")
+_DATA_DIR = os.path.join(os.path.expanduser("~"), ".geobrain_cache", "session_data")
 
 # 8 GiB ceiling so a couple of high-resolution volumes fit; diskcache evicts
 # least-recently-used entries beyond this.

@@ -5,10 +5,10 @@ import dash
 import diskcache
 from dash import Dash, DiskcacheManager
 
-from plotlybrain.app.layout import build_layout
+from geobrain.app.layout import build_layout
 
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
-_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".plotlybrain_cache")
+_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".geobrain_cache")
 
 
 def create_app() -> Dash:
@@ -37,7 +37,7 @@ def create_app() -> Dash:
 		__name__,
 		assets_folder=ASSETS_DIR,
 		background_callback_manager=background_manager,
-		title="PlotlyBrain",
+		title="geobrain",
 		suppress_callback_exceptions=True,
 		update_title=None,
 	)
@@ -45,7 +45,7 @@ def create_app() -> Dash:
 	app.layout = build_layout()
 
 	# Imported for the side effect of registering callbacks against `app`.
-	from plotlybrain.app import callbacks  # noqa: F401
+	from geobrain.app import callbacks  # noqa: F401
 
 	callbacks.register_callbacks(app)
 	return app

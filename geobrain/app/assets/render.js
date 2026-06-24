@@ -1,5 +1,5 @@
 /*
- * Clientside rendering for the PlotlyBrain dashboard.
+ * Clientside rendering for the GeoBrain dashboard.
  *
  * The brain figure, the results table and the slice label are all assembled in
  * the browser from compact `dcc.Store` payloads, so dragging the slice slider
@@ -109,7 +109,7 @@ function autoRange(valueMap, vmin, vmax) {
 	return [isNum(vmin) ? Number(vmin) : lo, isNum(vmax) ? Number(vmax) : hi];
 }
 
-window.dash_clientside.plotlybrain = {
+window.dash_clientside.geobrain = {
 	// Coalesce rapid slider drags to one render per animation frame. Each call
 	// stashes the latest inputs; a single requestAnimationFrame then rebuilds
 	// with the newest values and patches the existing plot via Plotly.react. Fast
@@ -119,7 +119,7 @@ window.dash_clientside.plotlybrain = {
 	_latestArgs: null,
 
 	render: function () {
-		const ns = window.dash_clientside.plotlybrain;
+		const ns = window.dash_clientside.geobrain;
 		const host = document.getElementById("brain-graph");
 		const gd = host && host.querySelector(".js-plotly-plot");
 		if (!gd || !window.Plotly) {
@@ -273,7 +273,7 @@ window.dash_clientside.plotlybrain = {
 	_tableArgs: null,
 
 	table: function () {
-		const ns = window.dash_clientside.plotlybrain;
+		const ns = window.dash_clientside.geobrain;
 		ns._tableArgs = arguments;
 		if (ns._tableTimer) clearTimeout(ns._tableTimer);
 		ns._tableTimer = setTimeout(function () {
