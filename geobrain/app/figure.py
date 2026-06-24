@@ -4,16 +4,10 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
-<<<<<<< HEAD:geobrain/app/figure.py
 from geobrain.build_geoJSON import get_slice_view, mask_to_polygon
 from geobrain.coord_system import slice_index_to_coordinate_mm
 from geobrain.choropleth_render import value_to_color
-=======
-from plotlybrain.build_geoJSON import get_slice_view, mask_to_polygon
-from plotlybrain.colormaps import resolve_name
-from plotlybrain.coord_system import slice_index_to_coordinate_mm
-from plotlybrain.choropleth_render import value_to_color
->>>>>>> origin/main:plotlybrain/app/figure.py
+from geobrain.colormaps import resolve_name
 
 SCORE_VALUE_COLUMN = {
 	"rel_abundance": "relative_abundance_z",
@@ -213,9 +207,7 @@ def _auto_range(
 	if zmin is not None and zmax is not None:
 		return zmin, zmax
 	nums = [
-		float(v)
-		for v in values
-		if v is not None and not (isinstance(v, float) and np.isnan(v))
+		float(v) for v in values if v is not None and not (isinstance(v, float) and np.isnan(v))
 	]
 	if not nums:
 		lo, hi = 0.0, 1.0
@@ -259,7 +251,12 @@ def build_export_figure(
 	regions = geometry_payload.get("by_slice", {}).get(str(int(slice_index)), [])
 	dims = geometry_payload.get("dims")
 	cmap = colorscale or "RdBu_r"
-	colorbar_scale = resolve_name(cmap) # Handle custom cmaps
+	colorbar_scale = resolve_name(cmap)  # Handle custom cmaps
+
+	# Auto-range unset limits from the data, matching the live view (render.js).
+	# Without this, density (default range (None, None)) collapses every region
+	# to the colorscale midpoint on export.
+	zmin, zmax = _auto_range(id2value.values(), zmin, zmax)
 
 	# Auto-range unset limits from the data, matching the live view (render.js).
 	# Without this, density (default range (None, None)) collapses every region
@@ -285,7 +282,9 @@ def build_export_figure(
 		elif static_mode:
 			fill = flat_color
 		else:
-			fill = value_to_color(id2value.get(rid), zmin, zmax, colorscale=cmap, na_color="#d9d9d9")
+			fill = value_to_color(
+				id2value.get(rid), zmin, zmax, colorscale=cmap, na_color="#d9d9d9"
+			)
 		for ring in region["rings"]:
 			fig.add_trace(
 				go.Scatter(

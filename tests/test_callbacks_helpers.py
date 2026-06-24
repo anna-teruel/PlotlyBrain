@@ -1,4 +1,4 @@
-"""Unit tests for the pure helper functions in plotlybrain.app.callbacks.
+"""Unit tests for the pure helper functions in geobrain.app.callbacks.
 
 These exercise the module-level helpers (delimiter resolution, column parsing,
 filename building, score-store normalization, GeoJSON serialization, slider
@@ -8,7 +8,7 @@ config) directly, with no Dash app or callback context involved.
 import pandas as pd
 import pytest
 
-from plotlybrain.app import callbacks as cb
+from geobrain.app import callbacks as cb
 
 
 # --------------------------------------------------------------------------- #

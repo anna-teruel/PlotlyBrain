@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from plotlybrain.build_geoJSON import scale_cartesian_to_lonlat
+from geobrain.build_geoJSON import scale_cartesian_to_lonlat
 
 
 def _fc(coords):
@@ -59,9 +59,7 @@ def test_scale_handles_degenerate_extent():
 	# All vertices share the same y (a horizontal sliver) -> ymax == ymin.
 	# The min-max scaling must not divide by zero and emit NaN/inf.
 	sliver = [[0.0, 5.0], [10.0, 5.0], [10.0, 5.0], [0.0, 5.0], [0.0, 5.0]]
-	out = scale_cartesian_to_lonlat(
-		_fc(sliver), lon_range=(-15.0, 15.0), lat_range=(-10.0, 10.0)
-	)
+	out = scale_cartesian_to_lonlat(_fc(sliver), lon_range=(-15.0, 15.0), lat_range=(-10.0, 10.0))
 	pts = out["features"][0]["geometry"]["coordinates"][0][0]
 	assert all(math.isfinite(p[0]) and math.isfinite(p[1]) for p in pts)
 

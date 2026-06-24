@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytest
 
-from plotlybrain.io import load_geojson, load_score, save_figure
+from geobrain.io import load_geojson, load_score, save_figure
 
 
 def test_load_score_roundtrip(tmp_path):

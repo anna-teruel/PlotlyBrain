@@ -16,13 +16,13 @@ import json
 import pytest
 from dash import no_update
 
-from plotlybrain.app import cache, figure
+from geobrain.app import cache, figure
 
 
 @pytest.fixture(scope="module")
 def callbacks_by_name():
 	"""Map each registered callback's function name to its raw inner function."""
-	from plotlybrain.app.server import create_app
+	from geobrain.app.server import create_app
 
 	app = create_app()
 	out = {}

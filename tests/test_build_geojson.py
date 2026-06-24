@@ -8,8 +8,8 @@ import pandas as pd
 import pytest
 from shapely.geometry import MultiPolygon, Polygon
 
-import plotlybrain.build_geoJSON as bg
-from plotlybrain.build_geoJSON import (
+import geobrain.build_geoJSON as bg
+from geobrain.build_geoJSON import (
 	load_annotation_volume,
 	load_structure_graph,
 	get_slice_view,
@@ -21,9 +21,7 @@ from plotlybrain.build_geoJSON import (
 
 
 def _flat_coords(geometry_coordinates):
-	return np.array(
-		[pt for poly in geometry_coordinates for ring in poly for pt in ring]
-	)
+	return np.array([pt for poly in geometry_coordinates for ring in poly for pt in ring])
 
 
 def test_load_annotation_volume_rejects_unsupported_resolution():
@@ -243,56 +241,60 @@ def test_save_geojson_preserves_built_coordinates(tmp_path, synthetic_volume, st
 
 	assert _flat_coords(after) == pytest.approx(_flat_coords(before))
 
+
 def test_scale_cartesian_to_lonlat_maps_bounds():
-    geojson = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "properties": {},
-                "geometry": {
-                    "type": "MultiPolygon",
-                    "coordinates": [[[
-                        [0, 0],
-                        [10, 0],
-                        [10, 20],
-                        [0, 20],
-                        [0, 0],
-                    ]]],
-                },
-            }
-        ],
-    }
+	geojson = {
+		"type": "FeatureCollection",
+		"features": [
+			{
+				"type": "Feature",
+				"properties": {},
+				"geometry": {
+					"type": "MultiPolygon",
+					"coordinates": [
+						[
+							[
+								[0, 0],
+								[10, 0],
+								[10, 20],
+								[0, 20],
+								[0, 0],
+							]
+						]
+					],
+				},
+			}
+		],
+	}
 
-    out = bg.scale_cartesian_to_lonlat(
-        geojson,
-        lon_range=(-1, 1),
-        lat_range=(-2, 2),
-    )
+	out = bg.scale_cartesian_to_lonlat(
+		geojson,
+		lon_range=(-1, 1),
+		lat_range=(-2, 2),
+	)
 
-    coords = _flat_coords(out["features"][0]["geometry"]["coordinates"])
+	coords = _flat_coords(out["features"][0]["geometry"]["coordinates"])
 
-    assert coords[:, 0].min() == pytest.approx(-1)
-    assert coords[:, 0].max() == pytest.approx(1)
-    assert coords[:, 1].min() == pytest.approx(-2)
-    assert coords[:, 1].max() == pytest.approx(2)
+	assert coords[:, 0].min() == pytest.approx(-1)
+	assert coords[:, 0].max() == pytest.approx(1)
+	assert coords[:, 1].min() == pytest.approx(-2)
+	assert coords[:, 1].max() == pytest.approx(2)
+
 
 def test_build_geojson_from_coords_mm(synthetic_volume, structure_df):
-    # synthetic_volume has only 3 coronal slices, with structures on index 1.
-    # At 25 um, bregma AP index is 228, so the coord that maps to slice 1 is
-    # (228 - 1) * 25 / 1000 = 5.675 mm.
-    geojson = build_geojson(
-        volume=synthetic_volume,
-        structure_df=structure_df,
-        orientation="coronal",
-        resolution_um=25,
-        coords_mm=[5.675],
-        min_area_px=5.0,
-        simplify_px=0.5,
-        polygon_mode="raster",
-    )
+	# synthetic_volume has only 3 coronal slices, with structures on index 1.
+	# At 25 um, bregma AP index is 228, so the coord that maps to slice 1 is
+	# (228 - 1) * 25 / 1000 = 5.675 mm.
+	geojson = build_geojson(
+		volume=synthetic_volume,
+		structure_df=structure_df,
+		orientation="coronal",
+		resolution_um=25,
+		coords_mm=[5.675],
+		min_area_px=5.0,
+		simplify_px=0.5,
+		polygon_mode="raster",
+	)
 
-    assert geojson["type"] == "FeatureCollection"
-    assert all(
-        feat["properties"]["slice_index"] == 1 for feat in geojson["features"]
-    )
+	assert geojson["type"] == "FeatureCollection"
+	assert all(feat["properties"]["slice_index"] == 1 for feat in geojson["features"])

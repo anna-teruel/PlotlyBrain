@@ -58,12 +58,48 @@ def region_by_subject() -> pd.DataFrame:
 	"""
 	return pd.DataFrame(
 		[
-			{"animal": "A1", "Region ID": 315, "Region name": "Isocortex", "objects": 10, "region_area": 100.0},
-			{"animal": "A1", "Region ID": 672, "Region name": "Caudoputamen", "objects": 0, "region_area": 50.0},
-			{"animal": "A2", "Region ID": 315, "Region name": "Isocortex", "objects": 20, "region_area": 100.0},
-			{"animal": "A2", "Region ID": 672, "Region name": "Caudoputamen", "objects": 4, "region_area": 50.0},
-			{"animal": "A3", "Region ID": 315, "Region name": "Isocortex", "objects": 0, "region_area": 100.0},
-			{"animal": "A3", "Region ID": 672, "Region name": "Caudoputamen", "objects": 6, "region_area": 50.0},
+			{
+				"animal": "A1",
+				"Region ID": 315,
+				"Region name": "Isocortex",
+				"objects": 10,
+				"region_area": 100.0,
+			},
+			{
+				"animal": "A1",
+				"Region ID": 672,
+				"Region name": "Caudoputamen",
+				"objects": 0,
+				"region_area": 50.0,
+			},
+			{
+				"animal": "A2",
+				"Region ID": 315,
+				"Region name": "Isocortex",
+				"objects": 20,
+				"region_area": 100.0,
+			},
+			{
+				"animal": "A2",
+				"Region ID": 672,
+				"Region name": "Caudoputamen",
+				"objects": 4,
+				"region_area": 50.0,
+			},
+			{
+				"animal": "A3",
+				"Region ID": 315,
+				"Region name": "Isocortex",
+				"objects": 0,
+				"region_area": 100.0,
+			},
+			{
+				"animal": "A3",
+				"Region ID": 672,
+				"Region name": "Caudoputamen",
+				"objects": 6,
+				"region_area": 50.0,
+			},
 		]
 	)
 
@@ -95,7 +131,11 @@ def quint_dir(tmp_path):
 	# A1: 315 appears twice (4 + 6 = 10); 672 absent (count 0)
 	_write_quint_csv(
 		data / "A1_RefAtlasRegions.csv",
-		[(315, "Isocortex", 4, 100.0), (315, "Isocortex", 6, 100.0), (672, "Caudoputamen", 0, 50.0)],
+		[
+			(315, "Isocortex", 4, 100.0),
+			(315, "Isocortex", 6, 100.0),
+			(672, "Caudoputamen", 0, 50.0),
+		],
 	)
 	_write_quint_csv(
 		data / "A2_RefAtlasRegions.csv",
@@ -119,11 +159,7 @@ def metadata_csv(tmp_path):
 	"""
 	path = tmp_path / "metadata.csv"
 	path.write_text(
-		"animal, group , sex\n"
-		"A1,control,M\n"
-		"A2,control,F\n"
-		"A3,treated,M\n"
-		"A4,treated,F\n",
+		"animal, group , sex\nA1,control,M\nA2,control,F\nA3,treated,M\nA4,treated,F\n",
 		encoding="utf-8",
 	)
 	return str(path)

@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 license = "MIT"
 license-files = [ "LICENSE" ]
 authors = [
-    { name = "Anna Teruel-Sanchis", email = "ateruels@uni-bremen.de" },
+    { name = "Anna Teruel-Sanchis", email = "anna.teruel@uv.es" },
     { name = "Konrad Danielewski", email = "k.danielewski@nencki.edu.pl" },
 ]
 keywords = [ "neuroscience", "data-visualization", "data-analysis" ]
@@ -90,3 +90,16 @@ line-length = 100
     indent-style = "tab"
 
     docstring-code-format = true
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "dash[testing]",
+    "selenium",
+]
+
+dev = [
+    "pre-commit",
+    "ruff",
+]

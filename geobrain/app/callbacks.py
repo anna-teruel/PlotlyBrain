@@ -28,15 +28,17 @@ _NOTIFY = {
 }
 
 
-def _notify(message: str, level: str = "info", title: str | None = None, autoClose: int = 4000) -> None:
+def _notify(
+	message: str, level: str = "info", title: str | None = None, autoClose: int = 4000
+) -> None:
 	"""Push a toast into the notifications container with a level-colored border.
 
 	Levels map to the border color the user expects: success=green, info=teal,
 	warning=yellow, error=red, each paired with a glyph icon. Errors are sticky
 	(``autoClose=False``) so the one thing the user must not miss can't vanish
 	before it's read; everything is dismissible via the close button. Emitted
-	through ``set_props`` so any callback — including the background processing
-	ones — can raise a toast without wiring an extra Output into its signature.
+	through ``set_props`` so any callback - including the background processing
+	ones - can raise a toast without wiring an extra Output into its signature.
 	"""
 	color, default_title, glyph = _NOTIFY.get(level, _NOTIFY["info"])
 	set_props(
@@ -62,7 +64,7 @@ def _status(message: str, color: str):
 	"""Inline status text colored by outcome (green=done, red=failed).
 
 	Returned as a status component's ``children`` so completion/failure recolors
-	the existing inline text in place — complementing the toast — without adding
+	the existing inline text in place - complementing the toast - without adding
 	a separate Output for the color. ``inherit`` keeps the parent's font size.
 	"""
 	return dmc.Text(message, c=color, span=True, inherit=True)
@@ -96,9 +98,7 @@ def _payload_to_geojson(geometry: dict, slices: list[dict] | None) -> dict:
 	``Region ID`` / ``Region name`` / ``slice_index`` / ``coordinate_mm`` props
 	and Polygon/MultiPolygon geometry built from the cached rings.
 	"""
-	coord_by_index = {
-		int(s["slice_index"]): s.get("coordinate_mm") for s in (slices or [])
-	}
+	coord_by_index = {int(s["slice_index"]): s.get("coordinate_mm") for s in (slices or [])}
 	orientation = geometry.get("orientation")
 
 	# Freshly built geometry is in pixel/screen space where y increases downward;
@@ -164,7 +164,7 @@ def _scores_to_store(result) -> dict:
 	Grouping is always applied: the store holds one entry per group, plus a
 	combined ``"All (mean)"`` entry (per-region mean across groups) whenever
 	there is more than one group. Accepts either a ``{group: df}`` dict (grouped
-	``score_table`` output) or a single DataFrame — a loaded CSV is split back
+	``score_table`` output) or a single DataFrame - a loaded CSV is split back
 	into groups on its ``group_label`` column when present.
 	"""
 	if isinstance(result, dict):
@@ -339,7 +339,6 @@ def _browse_path(directory: bool):
 
 
 def register_callbacks(app) -> None:
-
 	@app.callback(
 		Output("score-data-dir", "value"),
 		Input("browse-data-dir-btn", "n_clicks"),
@@ -389,7 +388,7 @@ def register_callbacks(app) -> None:
 		cache.put(session_id, "volume", volume)
 		cache.put(session_id, "structure_df", structure_df)
 		cache.put(session_id, "resolution_um", res)
-		status = f"Loaded atlas at {res} µm — volume {volume.shape}."
+		status = f"Loaded atlas at {res} µm - volume {volume.shape}."
 		return session_id, _status(status, "green"), False
 
 	@app.callback(
@@ -613,7 +612,7 @@ def register_callbacks(app) -> None:
 
 		Multiple groups are concatenated into one file with a ``group_label``
 		column; a single ungrouped table is written as-is. The derived
-		``"All (mean)"`` entry is not persisted — it is recomputed on load.
+		``"All (mean)"`` entry is not persisted - it is recomputed on load.
 		"""
 		if not scores:
 			return no_update
@@ -832,13 +831,18 @@ def register_callbacks(app) -> None:
 		"""Theme the DataTable (header/data/filter rows) to match the color scheme.
 
 		The DataTable is not a Mantine component, so it does not re-theme on its
-		own — its colors are set explicitly here. The ``css`` prop reaches inner
+		own - its colors are set explicitly here. The ``css`` prop reaches inner
 		elements that ``style_*`` cannot, such as the filter input's typed text
 		and its "filter data..." placeholder.
 		"""
 		if dark:
 			border = "1px solid #34345a"
-			header = {"fontWeight": "600", "backgroundColor": "#20203b", "color": "#c1c2c5", "border": border}
+			header = {
+				"fontWeight": "600",
+				"backgroundColor": "#20203b",
+				"color": "#c1c2c5",
+				"border": border,
+			}
 			data = {"backgroundColor": "#191930", "color": "#c1c2c5", "border": border}
 			filt = {"backgroundColor": "#20203b", "color": "#c1c2c5", "border": border}
 			css = [
@@ -850,7 +854,12 @@ def register_callbacks(app) -> None:
 			]
 		else:
 			border = "1px solid #c1d7f7"
-			header = {"fontWeight": "600", "backgroundColor": "#dde8fb", "color": "#2b3450", "border": border}
+			header = {
+				"fontWeight": "600",
+				"backgroundColor": "#dde8fb",
+				"color": "#2b3450",
+				"border": border,
+			}
 			data = {"backgroundColor": "white", "color": "#2b3450", "border": border}
 			filt = {"backgroundColor": "#dde8fb", "color": "#2b3450", "border": border}
 			css = []
@@ -897,7 +906,7 @@ def register_callbacks(app) -> None:
 		geometry = cache.get(session_id, "geometry")
 		if geometry is None:
 			_notify("Build or load slices first.", "warning")
-			return "No geometry in memory — build or load slices first."
+			return "No geometry in memory - build or load slices first."
 		if not scores or not slices:
 			_notify("Nothing to export yet.", "warning")
 			return "Nothing to export yet."
@@ -919,7 +928,7 @@ def register_callbacks(app) -> None:
 				colorscale=colorscale,
 				zmin=zmin,
 				zmax=zmax,
-				title=f"{score} — slice {slice_index}",
+				title=f"{score} - slice {slice_index}",
 				selected_rids=selected,
 				flat_color=flat,
 			)
@@ -978,7 +987,7 @@ def register_callbacks(app) -> None:
 		geometry = cache.get(session_id, "geometry")
 		if geometry is None:
 			_notify("Build or load slices first.", "warning")
-			return "No geometry in memory — build or load slices first."
+			return "No geometry in memory - build or load slices first."
 		if not scores or not slices:
 			_notify("Nothing to export yet.", "warning")
 			return "Nothing to export yet."
@@ -1005,7 +1014,7 @@ def register_callbacks(app) -> None:
 					colorscale=colorscale,
 					zmin=zmin,
 					zmax=zmax,
-					title=f"{score} — slice {slice_index}",
+					title=f"{score} - slice {slice_index}",
 					selected_rids=selected,
 					flat_color=flat,
 				)

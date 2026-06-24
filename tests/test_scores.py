@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import pytest
 
-from plotlybrain.scores import (
+from geobrain.scores import (
 	find_animal_id,
 	load_refatlas_regions,
 	compute_animal_region_counts,
@@ -111,8 +111,20 @@ def test_compute_reference_stats_zero_std_raises():
 	# Single region -> population std is 0 -> cannot z-score.
 	df = pd.DataFrame(
 		[
-			{"animal": "A1", "Region ID": 315, "Region name": "R", "objects": 5, "region_area": 1.0},
-			{"animal": "A2", "Region ID": 315, "Region name": "R", "objects": 5, "region_area": 1.0},
+			{
+				"animal": "A1",
+				"Region ID": 315,
+				"Region name": "R",
+				"objects": 5,
+				"region_area": 1.0,
+			},
+			{
+				"animal": "A2",
+				"Region ID": 315,
+				"Region name": "R",
+				"objects": 5,
+				"region_area": 1.0,
+			},
 		]
 	)
 	with pytest.raises(ValueError):
@@ -221,7 +233,5 @@ def test_save_scores_writes_table_matching_score_table(quint_dir, tmp_path):
 	reloaded = pd.read_csv(out_path)
 	# The returned table equals score_table(), and the file is its serialization.
 	expected = score_table(quint_dir, scores=["density"])
-	pd.testing.assert_frame_equal(
-		returned.reset_index(drop=True), expected.reset_index(drop=True)
-	)
+	pd.testing.assert_frame_equal(returned.reset_index(drop=True), expected.reset_index(drop=True))
 	assert set(reloaded["Region ID"].dropna()) == {315, 672}
