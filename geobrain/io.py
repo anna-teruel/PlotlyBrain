@@ -11,7 +11,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 from shapely.geometry import MultiPolygon, shape
-from brad.types import ScoreName
+from geobrain.types import ScoreName
 
 def load_score(
     score_csv: str,

@@ -5,13 +5,13 @@ from threading import Timer
 
 
 def main() -> None:
-	parser = argparse.ArgumentParser(description="Launch the PlotlyBrain dashboard.")
+	parser = argparse.ArgumentParser(description="Launch the GeoBrain dashboard.")
 	parser.add_argument("--host", default="127.0.0.1")
 	parser.add_argument("--port", type=int, default=8050)
 	parser.add_argument("--debug", action="store_true")
 	args = parser.parse_args()
 
-	from brad.app.server import create_app
+	from geobrain.app.server import create_app
 
 	app = create_app()
 

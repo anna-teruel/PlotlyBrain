@@ -10,8 +10,8 @@ from typing import Callable, Literal
 import pandas as pd
 from scipy.stats import zscore
 
-from brad.metadata import MetadataConfig
-from brad.types import ScoreName, RelAbundanceMethod, ReferenceMode
+from geobrain.metadata import MetadataConfig
+from geobrain.types import ScoreName, RelAbundanceMethod, ReferenceMode
 
 ScoreFn = Callable[[pd.DataFrame], pd.DataFrame]
 

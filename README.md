@@ -1,11 +1,11 @@
 <div align="center">
 
 <p align="center">
-  <img src="docs/logos/BRAD_logo1.png" width="75%">
+  <img src="docs/logos/geobrain_logo1.png" width="75%">
 </p>
 </div>
 
-BRAD (Brain Region Analysis Dashboard) is an interactive Python framework for atlas-based visualization of quantitative histological data. It maps region-wise metrics derived from atlas-registered workflows, such as QUINT [1], onto the Allen Mouse Brain Common Coordinate Framework (CCFv3) [2]. Built on Plotly, BRAD provides interactive 2D atlas navigation, group comparisons, customizable color mapping, web-based dashboard for exploratory analysis and publication-quality exports. 
+GeoBrain is an interactive Python framework for atlas-based visualization of quantitative histological data. It maps region-wise metrics derived from atlas-registered workflows, such as QUINT [1], onto the Allen Mouse Brain Common Coordinate Framework (CCFv3) [2]. Built on Plotly, geobrain provides interactive 2D atlas navigation, group comparisons, customizable color mapping, web-based dashboard for exploratory analysis and publication-quality exports. 
 
 
 ## Installation
@@ -13,8 +13,8 @@ BRAD (Brain Region Analysis Dashboard) is an interactive Python framework for at
 To install:
 
 ```
-git clone https://github.com/anna-teruel/BRAD
-cd BRAD
+git clone https://github.com/anna-teruel/geobrain
+cd geobrain
 uv venv
 .venv\Scripts\activate
 uv pip install .

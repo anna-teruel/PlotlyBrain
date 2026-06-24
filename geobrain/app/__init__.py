@@ -1,3 +1,3 @@
-from brad.app.server import create_app
+from geobrain.app.server import create_app
 
 __all__ = ["create_app"]

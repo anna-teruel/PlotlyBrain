@@ -1,6 +1,6 @@
 # Understanding Scores
 
-BRAD computes region-level scores from QUINT `*_RefAtlasRegions.csv` exports. These scores summarize the distribution of detected objects across brain regions and can be visualized as choropleth maps.
+GeoBrain computes region-level scores from QUINT `*_RefAtlasRegions.csv` exports. These scores summarize the distribution of detected objects across brain regions and can be visualized as choropleth maps.
 
 ## Overview
 
@@ -18,12 +18,12 @@ Three scores are currently available:
 
 Relative abundance measures whether a brain region contains more or fewer detected objects than expected compared to the overall distribution of objects across the brain.
 
-For each region, BRAD first computes the total number of detected objects across animals. These region totals are then normalized and expressed as z-scores, allowing regions with unusually high or low object counts to be identified.
+For each region, GeoBrain first computes the total number of detected objects across animals. These region totals are then normalized and expressed as z-scores, allowing regions with unusually high or low object counts to be identified.
 ---
 
 ## Normalization Methods
 
-Relative abundance can be computed using different normalization strategies depending on the goal of the analysis. BRAD currently supports two approaches:
+Relative abundance can be computed using different normalization strategies depending on the goal of the analysis. GeoBrain currently supports two approaches:
 - **Within normalization**: regions are compared to other regions within the same dataset or cohort.
 - **Reference normalization**: regions are compared to a shared reference distribution, allowing more direct comparisons across cohorts.
 
@@ -71,7 +71,7 @@ This makes it easier to identify regions that are enriched or depleted relative 
 
 Frequency measures how consistently a signal is observed across animals.
 
-For each region, BRAD calculates the fraction of animals with at least one detected object.
+For each region, GeoBrain calculates the fraction of animals with at least one detected object.
 
 ## Formula
 

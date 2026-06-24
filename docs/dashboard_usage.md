@@ -1,4 +1,4 @@
-# Using the PlotlyBrain dashboard
+# Using the GeoBrain dashboard
 
 The dashboard turns atlas-registered region data (e.g. from QUINT) into an
 interactive, colored slice viewer with high-resolution export. This guide walks
@@ -13,15 +13,15 @@ regions once they're rendered, see
 After installing (see the [README](../README.md)):
 
 ```
-python -m brad
+python -m geobrain
 # or, after install, the console script:
-brad
+geobrain
 ```
 
 A browser tab opens automatically at `http://127.0.0.1:8050`. Options:
 
 ```
-plotlybrain-app --host 0.0.0.0 --port 8060
+geobrain-app --host 0.0.0.0 --port 8060
 ```
 
 ---
