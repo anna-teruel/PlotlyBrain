@@ -4,10 +4,22 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
+<<<<<<< HEAD:plotlybrain/app/figure.py
+=======
+<<<<<<< HEAD:geobrain/app/figure.py
+from geobrain.build_geoJSON import get_slice_view, mask_to_polygon
+from geobrain.coord_system import slice_index_to_coordinate_mm
+from geobrain.choropleth_render import value_to_color
+=======
+>>>>>>> main:geobrain/app/figure.py
 from plotlybrain.build_geoJSON import get_slice_view, mask_to_polygon
 from plotlybrain.colormaps import resolve_name
 from plotlybrain.coord_system import slice_index_to_coordinate_mm
 from plotlybrain.choropleth_render import value_to_color
+<<<<<<< HEAD:plotlybrain/app/figure.py
+=======
+>>>>>>> origin/main:plotlybrain/app/figure.py
+>>>>>>> main:geobrain/app/figure.py
 
 SCORE_VALUE_COLUMN = {
 	"rel_abundance": "relative_abundance_z",

@@ -9,8 +9,13 @@ from typing import Callable, Literal
 import pandas as pd
 from scipy.stats import zscore
 
+<<<<<<< HEAD:plotlybrain/scores.py
 from plotlybrain.metadata import MetadataConfig
 from plotlybrain.types import ScoreName, RelAbundanceMethod, ReferenceMode
+=======
+from geobrain.metadata import MetadataConfig
+from geobrain.types import ScoreName, RelAbundanceMethod, ReferenceMode
+>>>>>>> main:geobrain/scores.py
 
 ScoreFn = Callable[[pd.DataFrame], pd.DataFrame]
 

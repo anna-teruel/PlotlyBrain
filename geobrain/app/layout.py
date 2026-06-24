@@ -403,7 +403,7 @@ def _left_panel():
 	return dmc.Stack(
 		[
 			html.Img(
-				src="/assets/plotly_brain_logo.png",
+				src="/assets/GeoBrain_logo2.png",
 				style={
 					"width": "100%",
 					"maxWidth": "300px",
@@ -411,7 +411,7 @@ def _left_panel():
 					"display": "block",
 					"margin": "0 auto",
 				},
-				alt="PlotlyBrain logo",
+				alt="GeoBrain logo",
 			),
 			_step1_load(),
 			_step2_geojson(),

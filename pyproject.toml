@@ -3,7 +3,11 @@ requires      = [ "setuptools>=61.0" ]
 build-backend = "setuptools.build_meta"
 
 [project]
+<<<<<<< HEAD
 name = "plotlybrain"
+=======
+name = "geobrain"
+>>>>>>> main
 version = "0.1.0"
 description = "placeholder"
 readme = "README.md"
@@ -45,17 +49,27 @@ dependencies = [
 ]
 
     [project.urls]
+<<<<<<< HEAD
     Homepage = "https://github.com/anna-teruel/PlotlyBrain"
     Issues   = "https://github.com/anna-teruel/PlotlyBrain/issues"
 
     [project.scripts]
     plotlybrain-app = "plotlybrain.app.__main__:main"
+=======
+    Homepage = "https://github.com/anna-teruel/geobrain"
+    Issues   = "https://github.com/anna-teruel/geobrain/issues"
+
+    [project.scripts]
+    geobrain = "geobrain.app.__main__:main"
+    geobrain-app = "geobrain.app.__main__:main"
+>>>>>>> main
 
 [tool.setuptools]
 include-package-data = true
 
     [tool.setuptools.packages.find]
     where      = [ "." ]
+<<<<<<< HEAD
     include    = [ "plotlybrain*" ]
     namespaces = true
 
@@ -80,6 +94,13 @@ addopts = "-ra --headless"
 markers = [
     "browser: dash.testing browser integration tests (launch headless Chrome)",
 ]
+=======
+    include    = [ "geobrain*" ]
+    namespaces = true
+
+    [tool.setuptools.package-data]
+    geobrain = [ "app/assets/*" ]
+>>>>>>> main
 
 [tool.ruff]
 line-length = 100

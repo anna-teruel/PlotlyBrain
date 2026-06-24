@@ -6,10 +6,15 @@ the row checkboxes, and how to apply a single **flat color** instead of the
 colormap.
 
 All of this happens live in the browser as you drag the slider or change a
+<<<<<<< HEAD
 control - there is no server round-trip. The logic lives in
 [`plotlybrain/app/assets/render.js`](../plotlybrain/app/assets/render.js); the
+=======
+control — there is no server round-trip. The logic lives in
+[`geobrain/app/assets/render.js`](../geobrain/app/assets/render.js); the
+>>>>>>> main
 controls are defined in
-[`plotlybrain/app/layout.py`](../plotlybrain/app/layout.py).
+[`geobrain/app/layout.py`](../geobrain/app/layout.py).
 
 ---
 
@@ -169,8 +174,8 @@ filter never changes any of the above - it only filters the table list.
 ## 7. Internals (for maintainers)
 
 The render is a clientside callback (`render`) in
-[`render.js`](../plotlybrain/app/assets/render.js), wired in
-[`callbacks.py`](../plotlybrain/app/callbacks.py). Its inputs map to the
+[`render.js`](../geobrain/app/assets/render.js), wired in
+[`callbacks.py`](../geobrain/app/callbacks.py). Its inputs map to the
 controls as:
 
 | Render arg | Source |
@@ -188,8 +193,8 @@ Key gating variables inside `render`:
   selected regions to the flat color and drops the colorbar.
 
 The static (server-side) export path in
-[`figure.py`](../plotlybrain/app/figure.py) takes the same gating as keyword
+[`figure.py`](../geobrain/app/figure.py) takes the same gating as keyword
 arguments (`selected_rids`, `flat_color`), so exports match the live view. Both
 export buttons read `selected_row_ids` / `static-color` / `static-color-toggle`
-directly (`_selected_flat` in [`callbacks.py`](../plotlybrain/app/callbacks.py)),
+directly (`_selected_flat` in [`callbacks.py`](../geobrain/app/callbacks.py)),
 and the selection / flat color apply across all slices.

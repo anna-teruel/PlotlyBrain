@@ -13,8 +13,13 @@ import numpy as np
 import pandas as pd
 from dash import ClientsideFunction, Input, Output, State, dcc, no_update, set_props
 
+<<<<<<< HEAD:plotlybrain/app/callbacks.py
 import plotlybrain
 from plotlybrain.app import cache, figure
+=======
+import geobrain
+from geobrain.app import cache, figure
+>>>>>>> main:geobrain/app/callbacks.py
 
 
 # Toast levels -> (Mantine color used for the border + icon box, default title,
@@ -381,8 +386,13 @@ def register_callbacks(app) -> None:
 		res = int(resolution)
 		try:
 			session_id = cache.new_session()
+<<<<<<< HEAD:plotlybrain/app/callbacks.py
 			volume = plotlybrain.load_annotation_volume(resolution_um=res)
 			structure_df = plotlybrain.load_structure_graph()
+=======
+			volume = geobrain.load_annotation_volume(resolution_um=res)
+			structure_df = geobrain.load_structure_graph()
+>>>>>>> main:geobrain/app/callbacks.py
 		except Exception as exc:  # download / disk / atlas errors
 			_notify(f"Could not load atlas: {exc}", "error")
 			return no_update, _status("Atlas load failed.", "red"), no_update
@@ -437,7 +447,11 @@ def register_callbacks(app) -> None:
 		res = int(cache.get(session_id, "resolution_um", 25))
 		step = float(step_mm) if step_mm else None
 		try:
+<<<<<<< HEAD:plotlybrain/app/callbacks.py
 			indices = plotlybrain.range_mm_to_slice_indices(
+=======
+			indices = geobrain.range_mm_to_slice_indices(
+>>>>>>> main:geobrain/app/callbacks.py
 				start_mm=float(start_mm),
 				end_mm=float(end_mm),
 				step_mm=step,
@@ -526,7 +540,11 @@ def register_callbacks(app) -> None:
 		set_progress((15, f"Loading {len(files)} QUINT file(s) (sep={use_sep!r})…"))
 
 		try:
+<<<<<<< HEAD:plotlybrain/app/callbacks.py
 			result = plotlybrain.score_table(
+=======
+			result = geobrain.score_table(
+>>>>>>> main:geobrain/app/callbacks.py
 				data_dir=data_dir,
 				scores=["rel_abundance", "frequency", "density"],
 				sep=use_sep,
@@ -923,7 +941,11 @@ def register_callbacks(app) -> None:
 				selected_rids=selected,
 				flat_color=flat,
 			)
+<<<<<<< HEAD:plotlybrain/app/callbacks.py
 			path = plotlybrain.save_figure(
+=======
+			path = geobrain.save_figure(
+>>>>>>> main:geobrain/app/callbacks.py
 				fig, out_dir=out_dir or ".", filename=name or "brain_slice", extension=fmt or "svg"
 			)
 		except Exception as exc:  # bad path, missing kaleido, etc.
@@ -1012,7 +1034,11 @@ def register_callbacks(app) -> None:
 				filename = _slice_filename(
 					name or "brain_slice", orientation, meta.get("coordinate_mm"), slice_index
 				)
+<<<<<<< HEAD:plotlybrain/app/callbacks.py
 				plotlybrain.save_figure(
+=======
+				geobrain.save_figure(
+>>>>>>> main:geobrain/app/callbacks.py
 					fig, out_dir=out_dir or ".", filename=filename, extension=fmt or "svg"
 				)
 		except Exception as exc:  # bad path, missing kaleido, etc.
@@ -1025,7 +1051,7 @@ def register_callbacks(app) -> None:
 		return _status(f"Saved {n} slice(s) to {out_dir or '.'}", "green")
 
 	app.clientside_callback(
-		ClientsideFunction(namespace="plotlybrain", function_name="render"),
+		ClientsideFunction(namespace="geobrain", function_name="render"),
 		Output("brain-graph", "figure"),
 		Input("slice-slider", "value"),
 		Input("score-select", "value"),
@@ -1043,7 +1069,7 @@ def register_callbacks(app) -> None:
 	)
 
 	app.clientside_callback(
-		ClientsideFunction(namespace="plotlybrain", function_name="table"),
+		ClientsideFunction(namespace="geobrain", function_name="table"),
 		Output("results-table", "data"),
 		Output("results-table", "columns"),
 		Output("results-table", "style_data_conditional"),
@@ -1057,7 +1083,7 @@ def register_callbacks(app) -> None:
 	)
 
 	app.clientside_callback(
-		ClientsideFunction(namespace="plotlybrain", function_name="sliceLabel"),
+		ClientsideFunction(namespace="geobrain", function_name="sliceLabel"),
 		Output("slice-label", "children"),
 		Input("slice-slider", "value"),
 		Input("slices-store", "data"),
