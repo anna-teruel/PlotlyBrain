@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import pytest
 
-from plotlybrain.scores import (
+from geobrain.scores import (
 	find_animal_id,
 	load_refatlas_regions,
 	compute_animal_region_counts,
@@ -21,6 +21,7 @@ from plotlybrain.scores import (
 
 # --- filename parsing -------------------------------------------------------
 
+
 @pytest.mark.parametrize(
 	"filename, expected",
 	[
@@ -34,6 +35,7 @@ def test_find_animal_id(filename, expected):
 
 
 # --- loading ----------------------------------------------------------------
+
 
 def test_load_refatlas_regions_excludes_background_and_root(quint_dir):
 	df = load_refatlas_regions(quint_dir)
@@ -50,6 +52,7 @@ def test_load_refatlas_regions_no_files_raises(tmp_path):
 
 
 # --- aggregation ------------------------------------------------------------
+
 
 def test_compute_animal_region_counts_sums_duplicates(quint_dir):
 	df = load_refatlas_regions(quint_dir)
@@ -68,6 +71,7 @@ def test_compute_region_counts(region_by_subject):
 
 
 # --- relative abundance -----------------------------------------------------
+
 
 def test_relative_abundance_within(region_by_subject):
 	out = relative_abundance(region_by_subject, method="within")
@@ -100,6 +104,7 @@ def test_relative_abundance_invalid_method(region_by_subject):
 
 # --- reference stats --------------------------------------------------------
 
+
 def test_compute_reference_stats(region_by_subject):
 	stats = compute_reference_stats(region_by_subject)
 	assert stats["reference_mean"] == pytest.approx(20.0)
@@ -111,8 +116,20 @@ def test_compute_reference_stats_zero_std_raises():
 	# Single region -> population std is 0 -> cannot z-score.
 	df = pd.DataFrame(
 		[
-			{"animal": "A1", "Region ID": 315, "Region name": "R", "objects": 5, "region_area": 1.0},
-			{"animal": "A2", "Region ID": 315, "Region name": "R", "objects": 5, "region_area": 1.0},
+			{
+				"animal": "A1",
+				"Region ID": 315,
+				"Region name": "R",
+				"objects": 5,
+				"region_area": 1.0,
+			},
+			{
+				"animal": "A2",
+				"Region ID": 315,
+				"Region name": "R",
+				"objects": 5,
+				"region_area": 1.0,
+			},
 		]
 	)
 	with pytest.raises(ValueError):
@@ -120,6 +137,7 @@ def test_compute_reference_stats_zero_std_raises():
 
 
 # --- frequency / consistency ------------------------------------------------
+
 
 def test_consistency_score_frequency(region_by_subject):
 	out = consistency_score(region_by_subject)
@@ -131,6 +149,7 @@ def test_consistency_score_frequency(region_by_subject):
 
 
 # --- density ----------------------------------------------------------------
+
 
 def test_density_score(region_by_subject):
 	out = density_score(region_by_subject)
@@ -151,6 +170,7 @@ def test_density_score_zero_area_is_na():
 
 
 # --- score_table integration ------------------------------------------------
+
 
 def test_score_table_ungrouped_has_all_score_columns(quint_dir):
 	out = score_table(quint_dir)
@@ -213,6 +233,7 @@ def test_score_table_reference_group_missing_raises(quint_dir, metadata_csv):
 
 # --- save_scores ------------------------------------------------------------
 
+
 def test_save_scores_writes_table_matching_score_table(quint_dir, tmp_path):
 	out_path = tmp_path / "nested" / "scores.csv"  # nested dir must be created
 	returned = save_scores(quint_dir, str(out_path), scores=["density"])
@@ -221,7 +242,5 @@ def test_save_scores_writes_table_matching_score_table(quint_dir, tmp_path):
 	reloaded = pd.read_csv(out_path)
 	# The returned table equals score_table(), and the file is its serialization.
 	expected = score_table(quint_dir, scores=["density"])
-	pd.testing.assert_frame_equal(
-		returned.reset_index(drop=True), expected.reset_index(drop=True)
-	)
+	pd.testing.assert_frame_equal(returned.reset_index(drop=True), expected.reset_index(drop=True))
 	assert set(reloaded["Region ID"].dropna()) == {315, 672}

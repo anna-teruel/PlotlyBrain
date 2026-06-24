@@ -12,7 +12,7 @@ PlotlyBrain is an interactive Python framework for atlas-based visualization of 
 </p>
 </div>
 
-GeoBrain is an interactive Python framework for atlas-based visualization of quantitative histological data. It maps region-wise metrics derived from atlas-registered workflows, such as QUINT [1], onto the Allen Mouse Brain Common Coordinate Framework (CCFv3) [2]. Built on Plotly, geobrain provides interactive 2D atlas navigation, group comparisons, customizable color mapping, web-based dashboard for exploratory analysis and publication-quality exports. 
+GeoBrain is an interactive Python framework for atlas-based visualization of quantitative histological data. It maps region-wise metrics derived from atlas-registered workflows, such as QUINT [1], onto the Allen Mouse Brain Common Coordinate Framework (CCFv3) [2]. Built on Plotly, geobrain provides interactive 2D atlas navigation, group comparisons, customizable color mapping, web-based dashboard for exploratory analysis and publication-quality exports.
 
 >>>>>>> main
 
@@ -40,7 +40,7 @@ uv pip install .
 
 ## License
 
-This project is licensed under the MIT License © 2026  
+This project is licensed under the MIT License © 2026
 Anna Teruel-Sanchis and Konrad Danielewski.
 
 See the [LICENSE](LICENSE) file for details.

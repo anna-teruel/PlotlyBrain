@@ -2,7 +2,7 @@
 
 import pytest
 
-from plotlybrain.coord_system import (
+from geobrain.coord_system import (
 	get_ccf_config,
 	coord_mm_to_slice_index,
 	slice_index_to_coordinate_mm,
@@ -104,14 +104,15 @@ def test_range_step_does_not_overshoot_end():
 	assert min(out) >= lo
 	assert max(out) <= hi
 
+
 @pytest.mark.parametrize("orientation", ["sagittal", "horizontal"])
 def test_range_interval_other_orientations(orientation):
-    out = range_mm_to_slice_indices(
-        start_mm=-1.0,
-        end_mm=1.0,
-        orientation=orientation,
-        resolution_um=25,
-    )
+	out = range_mm_to_slice_indices(
+		start_mm=-1.0,
+		end_mm=1.0,
+		orientation=orientation,
+		resolution_um=25,
+	)
 
-    assert len(out) > 0
-    assert out == sorted(out)
+	assert len(out) > 0
+	assert out == sorted(out)

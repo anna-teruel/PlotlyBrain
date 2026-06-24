@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
-from plotlybrain.colormaps import resolve_name
+from geobrain.colormaps import resolve_name
 
 
 def render_brain_slice(

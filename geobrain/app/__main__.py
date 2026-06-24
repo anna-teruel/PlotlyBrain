@@ -11,11 +11,7 @@ def main() -> None:
 	parser.add_argument("--debug", action="store_true")
 	args = parser.parse_args()
 
-<<<<<<< HEAD:plotlybrain/app/__main__.py
-	from plotlybrain.app.server import create_app
-=======
 	from geobrain.app.server import create_app
->>>>>>> main:geobrain/app/__main__.py
 
 	app = create_app()
 

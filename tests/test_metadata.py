@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from plotlybrain.metadata import MetadataConfig
+from geobrain.metadata import MetadataConfig
 
 
 def test_load_none_path_returns_none():

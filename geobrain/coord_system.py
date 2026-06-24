@@ -9,264 +9,270 @@ from dataclasses import dataclass
 from typing import Literal
 import numpy as np
 
-Orientation = Literal['coronal', 'sagittal', 'horizontal'] # orientation is only allowed to have one of these 3 values
+Orientation = Literal[
+	"coronal", "sagittal", "horizontal"
+]  # orientation is only allowed to have one of these 3 values
+
 
 @dataclass(frozen=True)
 class CCFConfig:
-    """
-    Configuration for a specific Allen annotation volume resolution.
+	"""
+	Configuration for a specific Allen annotation volume resolution.
 
-    Args:
-        resolution_um : int
-            Isotropic voxel size in microns. This is directly related to which annotation volume we load 
-            from the ANNOTATION_URLS in build_polygons.py. Following values are accepted: 10, 25, 50, 100. 
-        bregma_ml_index : int
-            Approximate mediolateral voxel index of bregma.
-        bregma_dv_index : int
-            Approximate dorsoventral voxel index of bregma.
-        bregma_ap_index : int
-            Approximate anteroposterior voxel index of bregma.
-    """
-    resolution_um: int
-    bregma_ml_index: int
-    bregma_dv_index: int
-    bregma_ap_index: int
+	Args:
+	    resolution_um : int
+	        Isotropic voxel size in microns. This is directly related to which annotation volume we load
+	        from the ANNOTATION_URLS in build_polygons.py. Following values are accepted: 10, 25, 50, 100.
+	    bregma_ml_index : int
+	        Approximate mediolateral voxel index of bregma.
+	    bregma_dv_index : int
+	        Approximate dorsoventral voxel index of bregma.
+	    bregma_ap_index : int
+	        Approximate anteroposterior voxel index of bregma.
+	"""
 
-def get_ccf_config(
-        resolution_um:int
-) -> CCFConfig:
-    """
-    Compute approximate Allen CCF bregma indices for a given voxel resolution.
+	resolution_um: int
+	bregma_ml_index: int
+	bregma_dv_index: int
+	bregma_ap_index: int
 
-    The physical bregma position is assumed to be approximately: ML = 5400 µm
-    DV = 450 µm, AP = 5700 µm. These are the coordinates of the approximate bregma
-    location inside the Allen CCF reference space, according to the following forum
-    discussion: 
-    https://community.brain-map.org/t/how-to-transform-ccf-x-y-z-coordinates-into-stereotactic-coordinates/1858
 
-    This function converts the physical position in microns into voxel indices for
-    a chosen atlas resolution. 
+def get_ccf_config(resolution_um: int) -> CCFConfig:
+	"""
+	Compute approximate Allen CCF bregma indices for a given voxel resolution.
 
-    Args:
-        resolution_um : int
-            Atlas voxel size in microns. Loaded from the config class. 
-            Example: 
-                >>> bregma_ml_index = round(5400 / 25)  # 216
-                >>> bregma_dv_index = round(450 / 25)   # 18
-                >>> bregma_ap_index = round(5700 / 25)  # 228
+	The physical bregma position is assumed to be approximately: ML = 5400 µm
+	DV = 450 µm, AP = 5700 µm. These are the coordinates of the approximate bregma
+	location inside the Allen CCF reference space, according to the following forum
+	discussion:
+	https://community.brain-map.org/t/how-to-transform-ccf-x-y-z-coordinates-into-stereotactic-coordinates/1858
 
-                Meaning: 
-                    In the 25 µm Allen annotation volume,
-                    bregma is approximately at voxel/index:
+	This function converts the physical position in microns into voxel indices for
+	a chosen atlas resolution.
 
-                    ML = 216
-                    DV = 18
-                    AP = 228
+	Args:
+	    resolution_um : int
+	        Atlas voxel size in microns. Loaded from the config class.
+	        Example:
+	            >>> bregma_ml_index = round(5400 / 25)  # 216
+	            >>> bregma_dv_index = round(450 / 25)  # 18
+	            >>> bregma_ap_index = round(5700 / 25)  # 228
 
-    Returns:
-        CCFConfig: Configuration object with resolution and bregma indices, based on our conversion system.
-    """
-    BREGMA_ML_UM = 5400 #microns
-    BREGMA_DV_UM = 450 #microns
-    BREGMA_AP_UM = 5700 #microns
+	            Meaning:
+	                In the 25 µm Allen annotation volume,
+	                bregma is approximately at voxel/index:
 
-    return CCFConfig(
-        resolution_um=resolution_um,
-        bregma_ml_index=round(BREGMA_ML_UM / resolution_um),
-        bregma_dv_index=round(BREGMA_DV_UM / resolution_um),
-        bregma_ap_index=round(BREGMA_AP_UM / resolution_um),
-    )
+	                ML = 216
+	                DV = 18
+	                AP = 228
+
+	Returns:
+	    CCFConfig: Configuration object with resolution and bregma indices, based on our conversion system.
+	"""
+	BREGMA_ML_UM = 5400  # microns
+	BREGMA_DV_UM = 450  # microns
+	BREGMA_AP_UM = 5700  # microns
+
+	return CCFConfig(
+		resolution_um=resolution_um,
+		bregma_ml_index=round(BREGMA_ML_UM / resolution_um),
+		bregma_dv_index=round(BREGMA_DV_UM / resolution_um),
+		bregma_ap_index=round(BREGMA_AP_UM / resolution_um),
+	)
+
 
 def coord_mm_to_slice_index(
-        coord_mm: float, 
-        orientation: Orientation = "coronal", 
-        resolution_um: int = 25,
-)-> int: 
-    """
-    Convert a stereotaxic coordinate in mm (from Bregma) to the corresponding Allen slice index,
-    depending on slice orientation.
+	coord_mm: float,
+	orientation: Orientation = "coronal",
+	resolution_um: int = 25,
+) -> int:
+	"""
+	Convert a stereotaxic coordinate in mm (from Bregma) to the corresponding Allen slice index,
+	depending on slice orientation.
 
-    The orientation determines which anatomical axis is being sliced:
-        coronal-> AP axis
-        sagittal-> ML axis
-        horizontal-> DV axis
+	The orientation determines which anatomical axis is being sliced:
+	    coronal-> AP axis
+	    sagittal-> ML axis
+	    horizontal-> DV axis
 
-    The conversion is performed relative to the approximate bregma
-    voxel indices computed by ``get_ccf_config()``.
+	The conversion is performed relative to the approximate bregma
+	voxel indices computed by ``get_ccf_config()``.
 
-    The anatomical sign convention depends on the orientation: 
-        AP: anterior is more positive, posterior more negative
-        ML: right is positive, left is negative
-        DV: dorsal is superficial and ventral (deeper) is negative. 
+	The anatomical sign convention depends on the orientation:
+	    AP: anterior is more positive, posterior more negative
+	    ML: right is positive, left is negative
+	    DV: dorsal is superficial and ventral (deeper) is negative.
 
-    Args: 
-        coord_mm: float. Stereotaxic coordinate in mm relative to Bregma. 
-        orientation: {'coronal', 'sagittal', 'horizontal'}, default = 'coronal'
-        resolution_um: int, default = 25. Atlas vixel resolution in microns
-    
-    Returns: 
-        int: approximate slice index in the Allen annotation volume 
+	Args:
+	    coord_mm: float. Stereotaxic coordinate in mm relative to Bregma.
+	    orientation: {'coronal', 'sagittal', 'horizontal'}, default = 'coronal'
+	    resolution_um: int, default = 25. Atlas vixel resolution in microns
 
-    Example: 
-        For a coronal atlas at 25 µm resolution:
-            >>> coord_mm = -2.0
-            >>> offset_voxels = round((-2.0 * 1000) / 25)
-            >>> offset_voxels
-            -80
-        Meaning: the requested coordinate is located 80 voxels posterior to 
-        bregma slice. 
+	Returns:
+	    int: approximate slice index in the Allen annotation volume
 
-        If: 
-            >>> cfg.bregma_ap_index = 228
-            >>> slice_index = 228 - (-80)
-            >>> slice index
-            308
-        
-        So, AP = -2.0 mm approximately corresponds to Allen Coronal slice index 308. 
-    """
-    cfg = get_ccf_config(resolution_um)
-    offset_voxels = round((coord_mm * 1000.0) / cfg.resolution_um) #how many slices away from bregma your coord is
+	Example:
+	    For a coronal atlas at 25 µm resolution:
+	        >>> coord_mm = -2.0
+	        >>> offset_voxels = round((-2.0 * 1000) / 25)
+	        >>> offset_voxels
+	        -80
+	    Meaning: the requested coordinate is located 80 voxels posterior to
+	    bregma slice.
 
-    if orientation == "coronal":
-        # +AP --> anterior to Bregma
-        # -AP --> posterior to Bregma 
-        # the Allen axis 1 increases posteriorly
-        return int(cfg.bregma_ap_index - offset_voxels)
+	    If:
+	        >>> cfg.bregma_ap_index = 228
+	        >>> slice_index = 228 - (-80)
+	        >>> slice index
+	        308
 
-    if orientation == "sagittal":
-        return int(cfg.bregma_ml_index - offset_voxels)
+	    So, AP = -2.0 mm approximately corresponds to Allen Coronal slice index 308.
+	"""
+	cfg = get_ccf_config(resolution_um)
+	offset_voxels = round(
+		(coord_mm * 1000.0) / cfg.resolution_um
+	)  # how many slices away from bregma your coord is
 
-    if orientation == "horizontal":
-        return int(cfg.bregma_dv_index - offset_voxels)
+	if orientation == "coronal":
+		# +AP --> anterior to Bregma
+		# -AP --> posterior to Bregma
+		# the Allen axis 1 increases posteriorly
+		return int(cfg.bregma_ap_index - offset_voxels)
 
-    raise ValueError(f"Unknown orientation: {orientation}")
+	if orientation == "sagittal":
+		return int(cfg.bregma_ml_index - offset_voxels)
+
+	if orientation == "horizontal":
+		return int(cfg.bregma_dv_index - offset_voxels)
+
+	raise ValueError(f"Unknown orientation: {orientation}")
+
 
 def slice_index_to_coordinate_mm(
-    slice_index: int,
-    orientation: Orientation = "coronal",
-    resolution_um: int = 25,
+	slice_index: int,
+	orientation: Orientation = "coronal",
+	resolution_um: int = 25,
 ) -> float:
-    """
-    Convert an Allen slice index to an approximate stereotaxic coordinate in mm (from Bregma),
-    depending on slice orientation (coronal, sagittal and horizontal)
+	"""
+	Convert an Allen slice index to an approximate stereotaxic coordinate in mm (from Bregma),
+	depending on slice orientation (coronal, sagittal and horizontal)
 
-    Args: 
-        slice_index: int, slice index in the allen annotation volume 
-        orientation: {'coronal', 'sagittal', 'horizontal}, default = 'coronal', 
-                    atlas slicing orientation
-        resolution_um: int, default = 25, atlas voxel resolution
+	Args:
+	    slice_index: int, slice index in the allen annotation volume
+	    orientation: {'coronal', 'sagittal', 'horizontal}, default = 'coronal',
+	                atlas slicing orientation
+	    resolution_um: int, default = 25, atlas voxel resolution
 
-    Returns: 
-        float: approximatestereotaxic coords in mm relative to Bregma. 
-    """
-    cfg = get_ccf_config(resolution_um)
+	Returns:
+	    float: approximatestereotaxic coords in mm relative to Bregma.
+	"""
+	cfg = get_ccf_config(resolution_um)
 
-    if orientation == "coronal":  
-        offset_voxels = cfg.bregma_ap_index - slice_index
+	if orientation == "coronal":
+		offset_voxels = cfg.bregma_ap_index - slice_index
 
-    elif orientation == "sagittal":
-        offset_voxels = cfg.bregma_ml_index - slice_index
+	elif orientation == "sagittal":
+		offset_voxels = cfg.bregma_ml_index - slice_index
 
-    elif orientation == "horizontal":
-        offset_voxels = cfg.bregma_dv_index - slice_index
+	elif orientation == "horizontal":
+		offset_voxels = cfg.bregma_dv_index - slice_index
 
-    else:
-        raise ValueError(f"Unknown orientation: {orientation}")
+	else:
+		raise ValueError(f"Unknown orientation: {orientation}")
 
-    return (offset_voxels * cfg.resolution_um) / 1000.0
+	return (offset_voxels * cfg.resolution_um) / 1000.0
+
 
 def range_mm_to_slice_indices(
-    start_mm: float | None = None,
-    end_mm: float | None = None,
-    coords_mm: list[float] | None = None,
-    step_mm: float | None = None,
-    orientation: Orientation = "coronal",
-    resolution_um: int = 25,
+	start_mm: float | None = None,
+	end_mm: float | None = None,
+	coords_mm: list[float] | None = None,
+	step_mm: float | None = None,
+	orientation: Orientation = "coronal",
+	resolution_um: int = 25,
 ) -> list[int]:
-    """
-    Convert a range stereotaxic coordinates in mm to Allen slice indices 
-    for subsequent rendering. 
+	"""
+	Convert a range stereotaxic coordinates in mm to Allen slice indices
+	for subsequent rendering.
 
-    Two modes are supported:
-        1. Manual coordinate list: 
-            Provide a list of bregma levels (mm) that you want to render. 
-            Example: coords_mm=[2.0, -2.0, -3.9]
+	Two modes are supported:
+	    1. Manual coordinate list:
+	        Provide a list of bregma levels (mm) that you want to render.
+	        Example: coords_mm=[2.0, -2.0, -3.9]
 
-        2. Coordinate interval:
-            Given a start and end slice, it renders all the slices in between the interval. 
-            Example: start_mm=-3.0, end_mm=-2.0
-            If `step_mm` is None, all Allen slices available between start_mm
-            and end_mm are returned. 
-            If `step_mm` is provided, coordinates are sampled every step_mm and 
-            converted to slice indices. 
+	    2. Coordinate interval:
+	        Given a start and end slice, it renders all the slices in between the interval.
+	        Example: start_mm=-3.0, end_mm=-2.0
+	        If `step_mm` is None, all Allen slices available between start_mm
+	        and end_mm are returned.
+	        If `step_mm` is provided, coordinates are sampled every step_mm and
+	        converted to slice indices.
 
-    Args:
-        start_mm : float | None
-            Start coordinate in mm relative to bregma.
-        end_mm : float | None
-            End coordinate in mm relative to bregma.
-        coords_mm : list[float] | None
-            Explicit list of coordinates in mm to convert.
-        step_mm : float | None
-            Optional spacing in mm between sampled coordinates.
-            If None, all slices in the interval are returned.
-        orientation : {"coronal", "sagittal", "horizontal"}, default="coronal"
-            Atlas slicing orientation.
-        resolution_um : int, default=25
-            Atlas voxel resolution in microns.
+	Args:
+	    start_mm : float | None
+	        Start coordinate in mm relative to bregma.
+	    end_mm : float | None
+	        End coordinate in mm relative to bregma.
+	    coords_mm : list[float] | None
+	        Explicit list of coordinates in mm to convert.
+	    step_mm : float | None
+	        Optional spacing in mm between sampled coordinates.
+	        If None, all slices in the interval are returned.
+	    orientation : {"coronal", "sagittal", "horizontal"}, default="coronal"
+	        Atlas slicing orientation.
+	    resolution_um : int, default=25
+	        Atlas voxel resolution in microns.
 
-    Returns:
-        list[int]: Sorted unique Allen slice indices.
-    """
-    if coords_mm is not None:
-        indices = [
-            coord_mm_to_slice_index(
-                coord_mm=c,
-                orientation=orientation,
-                resolution_um=resolution_um,
-            )
-            for c in coords_mm
-        ]
-        return sorted(set(indices))
+	Returns:
+	    list[int]: Sorted unique Allen slice indices.
+	"""
+	if coords_mm is not None:
+		indices = [
+			coord_mm_to_slice_index(
+				coord_mm=c,
+				orientation=orientation,
+				resolution_um=resolution_um,
+			)
+			for c in coords_mm
+		]
+		return sorted(set(indices))
 
-    if start_mm is None or end_mm is None:
-        raise ValueError(
-            "Provide either coords_mm, or both start_mm and end_mm."
-        )
+	if start_mm is None or end_mm is None:
+		raise ValueError("Provide either coords_mm, or both start_mm and end_mm.")
 
-    if step_mm is None:
-        i0 = coord_mm_to_slice_index(
-            coord_mm=start_mm,
-            orientation=orientation,
-            resolution_um=resolution_um,
-        )
-        i1 = coord_mm_to_slice_index(
-            coord_mm=end_mm,
-            orientation=orientation,
-            resolution_um=resolution_um,
-        )
+	if step_mm is None:
+		i0 = coord_mm_to_slice_index(
+			coord_mm=start_mm,
+			orientation=orientation,
+			resolution_um=resolution_um,
+		)
+		i1 = coord_mm_to_slice_index(
+			coord_mm=end_mm,
+			orientation=orientation,
+			resolution_um=resolution_um,
+		)
 
-        lo, hi = sorted((i0, i1))
-        return list(range(lo, hi + 1))
-    
-    if step_mm <= 0:
-            raise ValueError("step_mm must be positive.")
+		lo, hi = sorted((i0, i1))
+		return list(range(lo, hi + 1))
 
-    else:
-        lo_mm, hi_mm = sorted((start_mm, end_mm))
-        # np.arange's upper bound is padded by step_mm so the endpoint is
-        # included when it divides evenly; clip so a non-dividing step never
-        # samples a coordinate past hi_mm.
-        coords = np.arange(lo_mm, hi_mm + step_mm, step_mm)
-        coords = coords[coords <= hi_mm + 1e-9]
+	if step_mm <= 0:
+		raise ValueError("step_mm must be positive.")
 
-        indices = [
-            coord_mm_to_slice_index(
-                coord_mm=c,
-                orientation=orientation,
-                resolution_um=resolution_um,
-            )
-            for c in coords
-        ]
+	else:
+		lo_mm, hi_mm = sorted((start_mm, end_mm))
+		# np.arange's upper bound is padded by step_mm so the endpoint is
+		# included when it divides evenly; clip so a non-dividing step never
+		# samples a coordinate past hi_mm.
+		coords = np.arange(lo_mm, hi_mm + step_mm, step_mm)
+		coords = coords[coords <= hi_mm + 1e-9]
 
-        return sorted(set(indices))
+		indices = [
+			coord_mm_to_slice_index(
+				coord_mm=c,
+				orientation=orientation,
+				resolution_um=resolution_um,
+			)
+			for c in coords
+		]
+
+		return sorted(set(indices))

@@ -22,7 +22,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
-from plotlybrain.app.server import create_app
+from geobrain.app.server import create_app
 
 pytestmark = pytest.mark.browser
 
@@ -217,8 +217,9 @@ def test_row_selection_and_deselect_all(dash_duo, geojson_file, scores_file):
 	_load_geojson_and_scores(dash_duo, geojson_file, scores_file)
 
 	def checkboxes():
-		return dash_duo.find_elements("#results-table tbody input[type=radio], "
-		                              "#results-table tbody input[type=checkbox]")
+		return dash_duo.find_elements(
+			"#results-table tbody input[type=radio], #results-table tbody input[type=checkbox]"
+		)
 
 	_wait(dash_duo, lambda: len(checkboxes()) >= 1)
 	_js_click(dash_duo, checkboxes()[0])
