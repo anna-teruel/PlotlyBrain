@@ -13,9 +13,15 @@ regions once they're rendered, see
 After installing (see the [README](../README.md)):
 
 ```
+<<<<<<< HEAD
+python -m plotlybrain.app
+# or, after install, the console script:
+plotlybrain-app
+=======
 python -m geobrain
 # or, after install, the console script:
 geobrain
+>>>>>>> main
 ```
 
 A browser tab opens automatically at `http://127.0.0.1:8050`. Options:
@@ -28,16 +34,16 @@ geobrain-app --host 0.0.0.0 --port 8060
 
 ## Layout at a glance
 
-- **Header** (spanning the top) — a *dashboard* badge, a **Clear** button that
+- **Header** (spanning the top) - a *dashboard* badge, a **Clear** button that
   resets the session (see [Clearing the session](#clearing-the-session-reset)),
   and a **light/dark toggle**.
-- **Left column — the processing pipeline**, with the logo and three numbered
+- **Left column - the processing pipeline**, with the logo and three numbered
   steps:
   1. Load atlas (or load previously processed files)
   2. Build slice GeoJSONs
   3. Compute region scores
-- **Right column — the view**: a large brain figure with the **slice slider
-  directly beneath it**, and — in a row below — the coloring/export controls and
+- **Right column - the view**: a large brain figure with the **slice slider
+  directly beneath it**, and - in a row below - the coloring/export controls and
   the per-slice region table. On shorter screens the figure stays large and the
   controls/table below it scroll, rather than the figure shrinking.
 
@@ -47,7 +53,7 @@ loading files you saved earlier.
 
 ---
 
-## Step 1 — Load atlas
+## Step 1 - Load atlas
 
 Two tabs:
 
@@ -61,30 +67,30 @@ This enables **Step 2**.
 
 ### "Load processed files" (resume a previous session)
 If you already exported geometry and/or scores before, skip the atlas entirely:
-- **Load GeoJSON** — upload a `brain_slices.geojson` you saved in Step 2.
+- **Load GeoJSON** - upload a `brain_slices.geojson` you saved in Step 2.
   This reconstructs the slices and populates the slider.
-- **Load scores** — upload a `region_scores.csv` you saved in Step 3.
+- **Load scores** - upload a `region_scores.csv` you saved in Step 3.
 
 Loading both gets you straight to the view with no atlas processing.
 
 ---
 
-## Step 2 — Build slice GeoJSONs
+## Step 2 - Build slice GeoJSONs
 
 Defines which slices to cut and turns the atlas volume into polygon geometry.
 
-1. **Orientation** — Coronal, Sagittal, or Horizontal. This sets which axis the
+1. **Orientation** - Coronal, Sagittal, or Horizontal. This sets which axis the
    slice coordinates refer to (coronal → AP, sagittal → ML, horizontal → DV).
-2. **Start (mm) / End (mm) / Step (mm)** — the range of stereotaxic coordinates
+2. **Start (mm) / End (mm) / Step (mm)** - the range of stereotaxic coordinates
    (relative to bregma) to slice, and the spacing between slices.
 3. **Advanced build options** (collapsed by default):
-   - **Polygon mode** — *Contour (smooth)* for clean curved outlines, or
+   - **Polygon mode** - *Contour (smooth)* for clean curved outlines, or
      *Raster (fast)* for speed.
-   - **Min area (px)** — drop regions smaller than this on a slice.
-   - **Simplify (px)** — polygon simplification tolerance.
-   - **Smooth sigma** — outline smoothing strength.
+   - **Min area (px)** - drop regions smaller than this on a slice.
+   - **Simplify (px)** - polygon simplification tolerance.
+   - **Smooth sigma** - outline smoothing strength.
 4. Click **Build GeoJSONs**. A progress bar reports each slice as it's built.
-5. **Save** (optional) — downloads the geometry as `brain_slices.geojson` so you
+5. **Save** (optional) - downloads the geometry as `brain_slices.geojson` so you
    can reload it later via Step 1's "Load processed files" tab.
 
 Once slices exist, the brain figure appears on the right and the **slice slider
@@ -93,31 +99,29 @@ its mm coordinate).
 
 ---
 
-## Step 3 — Compute region scores
+## Step 3 - Compute region scores
 
 Loads your QUINT output and computes per-region metrics.
 
-1. **QUINT data folder** — folder containing the `*_RefAtlasRegions.csv` files
+1. **QUINT data folder** - folder containing the `*_RefAtlasRegions.csv` files
    (one per animal). Use **Browse** to pick it with a native folder dialog.
-2. **Separator** — column separator for those CSVs. Leave as `auto` to detect
+2. **Separator** - column separator for those CSVs. Leave as `auto` to detect
    it, or set it explicitly (e.g. `,` or `;`).
-3. **Metadata CSV** — path to a metadata table (one row per animal). **This is
+3. **Metadata CSV** - path to a metadata table (one row per animal). **This is
    required to compute scores.** Use **Browse** to select the file.
-4. **Separator** (metadata) — defaults to `;`.
-5. **Grouping** (collapsed by default) — how animals are grouped and how the
+4. **Separator** (metadata) - defaults to `;`.
+5. **Grouping** (collapsed by default) - how animals are grouped and how the
    relative-abundance reference is defined:
-   - **Animal column** — metadata column identifying each animal (default
+   - **Animal column** - metadata column identifying each animal (default
      `animal`).
-   - **Group column(s)** — metadata column(s) to group by (default `group`;
+   - **Group column(s)** - metadata column(s) to group by (default `group`;
      comma-separate for multiple).
-   - **Rel. abundance method** — *Within* or *Reference*. Details are covered in
-      [Understanding Scores](score_definitions.md).
-   - **Reference mode** — *Pooled* or *Group*. Details are covered in
-      [Understanding Scores](score_definitions.md).
-   - **Reference group (if mode = group)** — which group is the reference.
+   - **Rel. abundance method** - *Within* or *Reference*.
+   - **Reference mode** - *Pooled* or *Group*.
+   - **Reference group (if mode = group)** - which group is the reference.
 6. Click **Compute scores**. This computes **relative abundance**, **frequency**
    and **density** for every region, per group. A progress bar reports status.
-7. **Save** (optional) — downloads `region_scores.csv` (all groups concatenated
+7. **Save** (optional) - downloads `region_scores.csv` (all groups concatenated
    with a `group_label` column) for reloading later.
 
 > **The "Compute scores" button stays disabled until all three are true:**
@@ -134,16 +138,15 @@ Once geometry **and** scores are present, the brain is colored region-by-region.
 The figure sits at the top of the column with the slice slider directly beneath
 it; the coloring controls and the region table sit side by side in a row below.
 
-- **Slice slider** (under the figure) — drag to move through slices; the label
+- **Slice slider** (under the figure) - drag to move through slices; the label
   below it shows the slice index, mm coordinate, and position (e.g. `3/12`).
-- **Score** — choose *Rel. abundance*, *Frequency*, or *Density*. Switching it
+- **Score** - choose *Rel. abundance*, *Frequency*, or *Density*. Switching it
   resets `zmin`/`zmax` to that score's sensible default range.
-  Details are covered in [Understanding Scores](score_definitions.md).
-- **Group** — choose which group's scores to display (an `All (mean)` entry is
+- **Group** - choose which group's scores to display (an `All (mean)` entry is
   added automatically when multiple groups exist).
-- **Colorscale**, **zmin / zmax** — the colormap and its range (blank = auto).
-- **Flat toggle + color** — fill a highlighted subset with one solid color.
-- **Region table** — lists the regions on the current slice with their value;
+- **Colorscale**, **zmin / zmax** - the colormap and its range (blank = auto).
+- **Flat toggle + color** - fill a highlighted subset with one solid color.
+- **Region table** - lists the regions on the current slice with their value;
   supports sorting and filtering (to find regions) and row selection (the
   checkboxes control which regions stay colored on the brain).
 
@@ -156,12 +159,12 @@ Row selection, flat color, and the table filter are covered in detail in
 
 In the **Export** section of the controls:
 
-1. **Output folder** — where files are written (**Browse** opens a folder
+1. **Output folder** - where files are written (**Browse** opens a folder
    dialog). Defaults to the current directory (`.`).
-2. **File name** — base name (default `brain_slice`).
-3. **Format** — `svg`, `png`, `pdf`, or `html`.
-4. **Export current slice** — saves the slice you're viewing.
-   **Export all slices** — saves every slice; each filename gets the slice's
+2. **File name** - base name (default `brain_slice`).
+3. **Format** - `svg`, `png`, `pdf`, or `html`.
+4. **Export current slice** - saves the slice you're viewing.
+   **Export all slices** - saves every slice; each filename gets the slice's
    coordinate appended (e.g. `brain_slice_AP_+1.50mm.svg`), using the axis for
    the current orientation (AP/ML/DV). A progress bar tracks the batch.
 
@@ -186,7 +189,7 @@ change the export. See
 **Resume from saved files**
 1. Step 1 → "Load processed files" → upload your `brain_slices.geojson` and
    `region_scores.csv`.
-2. Explore and export — no atlas processing needed.
+2. Explore and export - no atlas processing needed.
 
 ---
 
@@ -194,19 +197,19 @@ change the export. See
 
 The app reports what's happening in two complementary ways:
 
-- **Toasts** — pop-up notifications at the **top-center** of the window, with a
+- **Toasts** - pop-up notifications at the **top-center** of the window, with a
   colored border (and a matching icon, so the type reads without relying on
   color alone):
-  - **green** — success (e.g. an export finished)
-  - **teal** — information
-  - **yellow** — warning (e.g. a missing folder or an empty slice range)
-  - **red** — error (something failed)
+  - **green** - success (e.g. an export finished)
+  - **teal** - information
+  - **yellow** - warning (e.g. a missing folder or an empty slice range)
+  - **red** - error (something failed)
 
-  Error toasts are **sticky** — they stay until you dismiss them with the × —
+  Error toasts are **sticky** - they stay until you dismiss them with the × -
   while the others fade on their own; any toast can be closed early. Toasts are
   reserved for the things you might otherwise miss: errors, warnings, and
   "invisible" successes such as a completed export or a cleared cache.
-- **Inline status text** — each pipeline step shows a short status line beneath
+- **Inline status text** - each pipeline step shows a short status line beneath
   its button (e.g. the loaded volume shape, or `Built 12 slice(s).`). It turns
   **green** on success and **red** on failure, so a step's result is visible in
   place without watching for a toast.
@@ -216,9 +219,9 @@ The app reports what's happening in two complementary ways:
 ## Clearing the session (reset)
 
 The **Clear** button in the header wipes the current session: it deletes the
-session's cached data from disk and resets the in-browser state — the figure and
+session's cached data from disk and resets the in-browser state - the figure and
 slider, all of the stores, every step's buttons and progress bars, and the input
-fields — back to a clean slate (an info toast confirms `Cache cleared.`). Use it
+fields - back to a clean slate (an info toast confirms `Cache cleared.`). Use it
 to start over without restarting the app.
 
 It only clears the working session; it does **not** delete any files you already

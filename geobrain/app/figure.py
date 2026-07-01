@@ -5,9 +5,9 @@ import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
 from geobrain.build_geoJSON import get_slice_view, mask_to_polygon
+from geobrain.choropleth_render import value_to_color
 from geobrain.colormaps import resolve_name
 from geobrain.coord_system import slice_index_to_coordinate_mm
-from geobrain.choropleth_render import value_to_color
 
 SCORE_VALUE_COLUMN = {
 	"rel_abundance": "relative_abundance_z",
@@ -195,6 +195,29 @@ def resolve_colorscale(name: str | None, n: int = 21) -> list[list[Any]]:
 	return [[points[i], _parse_rgb(c)] for i, c in enumerate(colors)]
 
 
+def _auto_range(
+	values, zmin: float | None, zmax: float | None
+) -> tuple[float | None, float | None]:
+	"""Fill missing color limits from the data, mirroring ``autoRange`` in render.js.
+
+	The live view auto-ranges any limit left unset (e.g. density, whose default
+	range is ``(None, None)``); the export must do the same or every region maps
+	to the colorscale midpoint.
+	"""
+	if zmin is not None and zmax is not None:
+		return zmin, zmax
+	nums = [
+		float(v) for v in values if v is not None and not (isinstance(v, float) and np.isnan(v))
+	]
+	if not nums:
+		lo, hi = 0.0, 1.0
+	else:
+		lo, hi = min(nums), max(nums)
+		if lo == hi:
+			hi = lo + 1.0
+	return (lo if zmin is None else zmin, hi if zmax is None else zmax)
+
+
 def build_export_figure(
 	geometry_payload: dict,
 	score_records: list[dict[str, Any]],
@@ -228,7 +251,17 @@ def build_export_figure(
 	regions = geometry_payload.get("by_slice", {}).get(str(int(slice_index)), [])
 	dims = geometry_payload.get("dims")
 	cmap = colorscale or "RdBu_r"
-	colorbar_scale = resolve_name(cmap) # Handle custom cmaps
+	colorbar_scale = resolve_name(cmap)  # Handle custom cmaps
+
+	# Auto-range unset limits from the data, matching the live view (render.js).
+	# Without this, density (default range (None, None)) collapses every region
+	# to the colorscale midpoint on export.
+	zmin, zmax = _auto_range(id2value.values(), zmin, zmax)
+
+	# Auto-range unset limits from the data, matching the live view (render.js).
+	# Without this, density (default range (None, None)) collapses every region
+	# to the colorscale midpoint on export.
+	zmin, zmax = _auto_range(id2value.values(), zmin, zmax)
 
 	# Mirror the live view's gating (see assets/render.js): the row selection
 	# narrows coloring to `selected_rids`, and the flat color replaces the
@@ -249,7 +282,9 @@ def build_export_figure(
 		elif static_mode:
 			fill = flat_color
 		else:
-			fill = value_to_color(id2value.get(rid), zmin, zmax, colorscale=cmap, na_color="#d9d9d9")
+			fill = value_to_color(
+				id2value.get(rid), zmin, zmax, colorscale=cmap, na_color="#d9d9d9"
+			)
 		for ring in region["rings"]:
 			fig.add_trace(
 				go.Scatter(

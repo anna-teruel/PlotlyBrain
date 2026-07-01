@@ -1,6 +1,5 @@
 """
 Choropleth rendering of Allen atlas slice GeoJSONs with Plotly.
-@author Anna Teruel-Sanchis, June 2026
 """
 
 import pandas as pd
@@ -116,7 +115,7 @@ def render_brain_slice(
 	if zmin is not None and zmax is not None:
 		range_color = (zmin, zmax)
 
-	kwargs.setdefault("color_continuous_scale", "Aurora")
+	kwargs.setdefault("color_continuous_scale", resolve_name("Aurora"))
 	kwargs.setdefault("map_style", "white-bg")
 	kwargs.setdefault("center", {"lat": 0, "lon": 0})
 	kwargs.setdefault("zoom", 3)
