@@ -5,9 +5,9 @@ import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
 from geobrain.build_geoJSON import get_slice_view, mask_to_polygon
-from geobrain.coord_system import slice_index_to_coordinate_mm
 from geobrain.choropleth_render import value_to_color
 from geobrain.colormaps import resolve_name
+from geobrain.coord_system import slice_index_to_coordinate_mm
 
 SCORE_VALUE_COLUMN = {
 	"rel_abundance": "relative_abundance_z",

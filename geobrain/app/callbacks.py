@@ -315,6 +315,39 @@ def _native_path_dialog(directory: bool) -> str | None:
 	return result.stdout.strip() or None
 
 
+def _data_range(scores, group, score):
+	"""Min/max of a score's values across the selected group's records.
+
+	Used to seed blank axis limits (e.g. ``density``) with the real data spread,
+	mirroring ``autoRange`` in assets/render.js. Returns ``(None, None)`` when no
+	data is loaded yet so the inputs simply stay empty.
+	"""
+	if not scores:
+		return None, None
+	group = group if group in scores else next(iter(scores), None)
+	records = scores.get(group) if group else None
+	if not records:
+		return None, None
+	value_col = figure.SCORE_VALUE_COLUMN.get(score)
+	nums = []
+	for row in records:
+		val = row.get(value_col)
+		if val is None:
+			continue
+		try:
+			num = float(val)
+		except (TypeError, ValueError):
+			continue
+		if not math.isnan(num):
+			nums.append(num)
+	if not nums:
+		return None, None
+	lo, hi = min(nums), max(nums)
+	if lo == hi:
+		hi = lo + 1.0
+	return round(lo, 3), round(hi, 3)
+
+
 def _selected_flat(selected_ids, static_color, use_flat):
 	"""Resolve the export gating from the live controls: the set of selected
 	region ids and the flat color (``None`` when the flat toggle is off, so the
@@ -704,10 +737,23 @@ def register_callbacks(app) -> None:
 		Output("zmin-input", "value"),
 		Output("zmax-input", "value"),
 		Input("score-select", "value"),
+		State("scores-store", "data"),
+		State("group-select", "value"),
 		prevent_initial_call=True,
 	)
-	def default_limits(score):
+	def default_limits(score, scores, group):
+		"""Seed the axis limits when the score changes.
+
+		Scores with a fixed default range use it; scores without one (density)
+		get the actual min/max of the loaded data so the inputs reflect real
+		values. This keeps the export — which reads these inputs — colored like
+		the live view instead of flattening to the colormap midpoint.
+		"""
 		zmin, zmax = figure.SCORE_DEFAULT_RANGE.get(score, (None, None))
+		if zmin is None or zmax is None:
+			lo, hi = _data_range(scores, group, score)
+			zmin = lo if zmin is None else zmin
+			zmax = hi if zmax is None else zmax
 		return zmin, zmax
 
 	@app.callback(
