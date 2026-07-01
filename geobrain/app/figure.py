@@ -176,7 +176,7 @@ def resolve_colorscale(name: str | None, n: int = 21) -> list[list[Any]]:
 
 	Sampling to evenly-spaced RGB stops lets the browser interpolate fill colors
 	without shipping Plotly's colorscale machinery. Handles the ``_r`` reversed
-	suffix and falls back to Viridis for unknown names.
+	suffix and falls back to Aurora for unknown names.
 	"""
 	name = name or "RdBu_r"
 	reverse = name.endswith("_r")
@@ -186,7 +186,7 @@ def resolve_colorscale(name: str | None, n: int = 21) -> list[list[Any]]:
 	try:
 		colors = sample_colorscale(base, points, colortype="rgb")
 	except Exception:
-		colors = sample_colorscale("Viridis", points, colortype="rgb")
+		colors = sample_colorscale("Aurora", points, colortype="rgb")
 		reverse = False
 
 	if reverse:
